@@ -1,0 +1,11 @@
+setup.py
+mrmc_package.egg-info/PKG-INFO
+mrmc_package.egg-info/SOURCES.txt
+mrmc_package.egg-info/dependency_links.txt
+mrmc_package.egg-info/requires.txt
+mrmc_package.egg-info/top_level.txt
+rmc/__init__.py
+rmc/rmc4.py
+table/__init__.py
+table/table1.py
+table/table4.py
