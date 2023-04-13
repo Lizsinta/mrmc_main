@@ -750,8 +750,12 @@ class MainWindow(QMainWindow, Ui_MainWindow_Pol):
             print('model wrote')
             for pol in range(self.thread.exp.size):
                 with open(self.thread.folder + r'\chi_sum%d.txt' % (pol + 1), 'w') as result:
+                    result.write('[calculated spectrum]\n')
                     for _ in range(self.thread.chi_sum[pol].size):
                         result.write('   %f     %f\n' % (self.thread.exp[pol].k[_], self.thread.chi_sum[pol][_]))
+                    result.write('[experimental spectrum]\n')
+                    for _ in range(self.thread.chi_sum[pol].size):
+                        result.write('   %f     %f\n' % (self.thread.exp[pol].k[_], self.thread.exp[pol].chi[_]))
             print('chi wrote')
             self.write_info(self.thread.folder)
             print('information wrote')
