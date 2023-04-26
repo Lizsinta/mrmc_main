@@ -127,6 +127,8 @@ class Worker(QThread):
             return False
         if not os.path.exists(self.folder + r'\backup'):
             os.makedirs(self.folder + r'\backup')
+        if not os.path.exists(self.folder + r'\backup\result'):
+            os.makedirs(self.folder + r'\backup\result')
         for i in range(self.exp.size):
             os.popen('copy "%s" "%s"' % (self.folder + r'\chi_sum%d.txt' % (i + 1),
                                          self.folder + r'\backup\chi_sum%d.txt' % (i + 1)))
