@@ -60,6 +60,7 @@ class Worker(QThread):
         self.t_start = 0
         self.rep = np.array([], dtype=RMC4)
         self.file_inp = ''
+        self.backup_count = 2000
 
     def init(self):
         self.rep = np.empty(self.rep_size, dtype=RMC4)
@@ -127,6 +128,8 @@ class Worker(QThread):
             return False
         if not os.path.exists(self.folder + r'\backup'):
             os.makedirs(self.folder + r'\backup')
+        if not os.path.exists(self.folder + r'\backup\result'):
+            os.makedirs(self.folder + r'\backup\result')
         for i in range(self.exp.size):
             os.popen('copy "%s" "%s"' % (self.folder + r'\chi_sum%d.txt' % (i + 1),
                                          self.folder + r'\backup\chi_sum%d.txt' % (i + 1)))
@@ -298,6 +301,7 @@ class Worker(QThread):
                 self.move_pattern = True
             elif temp == 'False' or temp == 'false' or temp == '0':
                 self.move_pattern = False
+                self.backup_count = 2000 * self.rep_size
             else:
                 self.sig_warning.emit('move pattern parameter error')
                 return False
@@ -498,7 +502,7 @@ class Worker(QThread):
         self.sig_statusbar.emit('Running', 0)
         trials = np.zeros(self.rep_size)
         while True:
-            if self.step_count % 5000 == 0:
+            if self.step_count % self.backup_count == 0:
                 self.sig_backup.emit(True)
                 self.flag = False
             move_array = np.arange(self.rep_size) if self.move_pattern else np.array([randrange(0, self.rep_size)])
