@@ -60,6 +60,7 @@ class Worker(QThread):
         self.t_start = 0
         self.rep = np.array([], dtype=RMC4)
         self.file_inp = ''
+        self.backup_count = 2000
 
     def init(self):
         self.rep = np.empty(self.rep_size, dtype=RMC4)
@@ -300,6 +301,7 @@ class Worker(QThread):
                 self.move_pattern = True
             elif temp == 'False' or temp == 'false' or temp == '0':
                 self.move_pattern = False
+                self.backup_count = 2000 * self.rep_size
             else:
                 self.sig_warning.emit('move pattern parameter error')
                 return False
@@ -500,7 +502,7 @@ class Worker(QThread):
         self.sig_statusbar.emit('Running', 0)
         trials = np.zeros(self.rep_size)
         while True:
-            if self.step_count % 5000 == 0:
+            if self.step_count % self.backup_count == 0:
                 self.sig_backup.emit(True)
                 self.flag = False
             move_array = np.arange(self.rep_size) if self.move_pattern else np.array([randrange(0, self.rep_size)])
