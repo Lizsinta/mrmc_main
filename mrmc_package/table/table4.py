@@ -8,6 +8,7 @@ class TABLE_POL:
     def __init__(self, k_head, k_tail, r_head, r_tail, sig2, dE, s02, k0, coor, element,
                  folder, polarization=-1, ms_en=False, weight=3):
         self.k0 = k0
+        self.k = np.array([])
         self.k_head = k_head
         self.k_tail = k_tail
         self.r_head = r_head
@@ -63,7 +64,7 @@ class TABLE_POL:
         if ms_en:
             self.create_commute()
             self.create_multi()
-        self.k, self.chi = self.sum_up_chi(True)
+        self.chi = self.sum_up_chi(True)
         # print('create', timer()-start)
 
     def read_ini(self, file):
@@ -250,8 +251,12 @@ class TABLE_POL:
             used = np.where(self.log_3rd == 1)
             for i in range(used[0].size):
                 chi0 += self.chi_3rd[used[0][i]][used[1][i]]
-        chi_ift = back_k_space(chi0, self.k0.size, self.r_head, self.r_tail)
-        return k_range(self.k0, chi_ift, self.k_head, self.k_tail, False, get_k=get_k)
+        if get_k:
+            self.k, chi_cut = k_range(self.k0, chi0, self.k_head, self.k_tail, False)
+        else:
+            k, chi_cut = k_range(self.k0, chi0, self.k_head, self.k_tail, False)
+        return back_k_space(chi_cut, self.k.size, self.r_head, self.r_tail)
+
 
     def moving(self, target, coor, debug=False):
         # start = timer()

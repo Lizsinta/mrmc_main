@@ -53,10 +53,7 @@ def k_range(k=np.array([]), xi=np.array([]), start=3.0, end=12.0, padding=True, 
     if padding:
         return np.concatenate((np.zeros(k_start), xi_t, np.zeros(k.size - k_end)))
     else:
-        if get_k:
-            return k[k_start:k_end], xi_t
-        else:
-            return xi_t
+        return k[k_start:k_end], xi_t
 
 
 def deltaE_shift(k=np.array([]), xi=np.array([]), dE=0.0, factor=0.2624683854935682):
