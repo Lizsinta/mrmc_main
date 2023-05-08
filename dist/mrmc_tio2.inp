@@ -1,0 +1,34 @@
+[experimental data (.rex)]
+exp1: J:\Monte Carlo\cuos\Cu202_sum.rex
+exp2: J:\Monte Carlo\cuos\Cu207_sum.rex
+exp3: J:\Monte Carlo\cuos\Cu211_sum_d.rex
+weight: 3
+
+[model setting]
+replicas_size:10
+surface:TiO2
+center_atom[element coor1 coor2 coor3]
+Cu 1.84 0 0
+satellite_atoms[element coor1 coor2 coor3]
+S 2.15 -1 30
+END
+coordinate_system[True=spherical, False=cartesian]:True
+random_deposition[True=randomly initial adsorbed point]:False
+move_pattern[True=all replicas move every step]:True
+trial_count[[target, moving], prevent random walk choke, optiona]: 100 100
+step_min[[center satellite], minimum step of moving], optiona]:0.01 0.01
+step_max[[center satellite], maximum step of moving], optiona]:2 0.1
+surface_range[[xmin, xmax, ymin, ymax, zmin, zmax], optional]:
+
+[spectrum setting]
+S0:1
+SIG2:0
+k_range[low high]:3 9
+r_range[low high]:1 2.7
+delta_E[setting for each satellite atom]:13 -3 13
+rpath[valid only for surface included]:2.7
+multiscattering[True=enable]:False
+
+[path setting]
+material_folder[back scattering data]: J:\Monte Carlo\cutio2\  
+simulation_folder: J:\test\present\cutio2\
