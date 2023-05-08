@@ -31,8 +31,8 @@ class RMC4:
 
     def table_init(self):
         pol = np.arange(3) if self.exp.size == 3 else (np.arange(2) + 2)
-        self.table = np.array([TABLE_POL(self.exp[pol].k_start, self.exp[pol].k_end, self.exp[pol].r_start,
-                                         self.exp[pol].r_end, self.sig2, self.energy, self.s02, self.exp[pol].k0,
+        self.table = np.array([TABLE_POL(self.exp[i].k_start, self.exp[i].k_end, self.exp[i].r_start,
+                                         self.exp[i].r_end, self.sig2, self.energy, self.s02, self.exp[i].k0,
                                          self.cell.coordinate.copy(), self.cell.element.copy(),
                                          self.data_base, i, ms_en=self.ms, weight=self.weight) for i in pol])
         self.r_factor_i = np.array([self.exp[_].r_factor(self.table[_].chi) for _ in range(self.exp.size)])
@@ -149,8 +149,8 @@ class RMC4:
     def read_result(self):
         self.cell.read(self.index)
         pol = np.arange(3) if self.exp.size == 3 else (np.arange(2) + 2)
-        self.table = np.array([TABLE_POL(self.exp[pol].k_start, self.exp[pol].k_end, self.exp[pol].r_start,
-                                         self.exp[pol].r_end, self.sig2, self.energy, self.s02, self.exp[pol].k0,
+        self.table = np.array([TABLE_POL(self.exp[i].k_start, self.exp[i].k_end, self.exp[i].r_start,
+                                         self.exp[i].r_end, self.sig2, self.energy, self.s02, self.exp[i].k0,
                                          self.cell.coordinate.copy(), self.cell.element.copy(),
                                          self.data_base, i, ms_en=self.ms, weight=self.weight) for i in pol])
         print('table set up')

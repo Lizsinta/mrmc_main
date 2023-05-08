@@ -383,7 +383,7 @@ class Worker(QThread):
                 try:
                     self.sig2 = float(sig2[1])
                 except ValueError:
-                    self.sig_warning.emit('sgi2 format error')
+                    self.sig_warning.emit('sig2 format error')
                     return False
             else:
                 self.sig2 = 0
@@ -757,7 +757,7 @@ class MainWindow(QMainWindow, Ui_MainWindow_Pol):
                     result.write('[calculated spectrum]\n')
                     for _ in range(self.thread.chi_sum[pol].size):
                         result.write('   %f     %f\n' % (self.thread.exp[pol].k[_], self.thread.chi_sum[pol][_]))
-                    result.write('[experimental spectrum]\n')
+                    result.write('\n[experimental spectrum]\n')
                     for _ in range(self.thread.chi_sum[pol].size):
                         result.write('   %f     %f\n' % (self.thread.exp[pol].k[_], self.thread.exp[pol].chi[_]))
             print('chi wrote')
@@ -817,6 +817,7 @@ class MainWindow(QMainWindow, Ui_MainWindow_Pol):
 
     def write_model(self):
         with open(self.thread.folder + r'/model.dat', 'r+') as f:
+
             while True:
                 lines = f.readline()
                 if not lines.find('initial local model') == -1:
@@ -866,8 +867,8 @@ class MainWindow(QMainWindow, Ui_MainWindow_Pol):
             f.seek(f.tell())
             f.write('\n')
             f.seek(f.tell())
-            f.write('[best model]\n')
             if not self.thread.surface == '':
+                f.write('[best surface model]\n')
                 for i in range(self.thread.rep[0].cell.surface_e.size):
                     f.seek(f.tell())
                     f.write('%s %.6f %.6f %.6f\n' % (self.thread.rep[0].cell.surface_e[i],
@@ -890,7 +891,23 @@ class MainWindow(QMainWindow, Ui_MainWindow_Pol):
                                                          replica.cell.c_best[base + i][2]))
                 f.seek(f.tell())
                 f.write('\n')
+                f.seek(f.tell())
+                f.write('[Best local model]\n')
+                f.seek(f.tell())
+                f.write('%s %.6f %.6f %.6f\n' % (replica.cell.center_e, 0, 0, 0))
+                for replica in self.thread.rep:
+                    for i in range(1, replica.cell.local_size):
+                        temp = replica.cell.c_best[base + i] - replica.cell.c_best[base]
+                        f.seek(f.tell())
+                        f.write('%s %.6f %.6f %.6f\n' % (replica.cell.e_best[base + i], temp[0], temp[1], temp[2]))
+                    for i in range(replica.cell.surface_e.size):
+                        temp = replica.cell.c_best[i] - replica.cell.c_best[base]
+                        if sqrt((temp ** 2).sum()) < self.thread.local_range:
+                            f.seek(f.tell())
+                            f.write('%s %.6f %.6f %.6f\n' % (replica.cell.surface_e[i], temp[0], temp[1], temp[2]))
             else:
+                f.seek(f.tell())
+                f.write('[Best local model]\n')
                 f.seek(f.tell())
                 f.write('%s %.6f %.6f %.6f\n' % (replica.cell.center_e, 0, 0, 0))
                 for replica in self.thread.rep:
