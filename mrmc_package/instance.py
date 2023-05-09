@@ -535,10 +535,10 @@ class ATOMS:
                 trials -= 1
                 continue
 
-            '''if self.surface == 'TiO2':
+            if self.surface == 'TiO2':
                 if not self.tca_filter(self.cw_temp[-1]):
                     trials -= 1
-                    continue'''
+                    continue
 
             distance = get_distance(self.cw_temp - self.cw_temp[-self.local_size])
             self.c_temp = self.cw_temp[-self.local_size:].copy()
@@ -655,10 +655,3 @@ class ATOMS:
             for j in neighbor:
                 distance_sum[i] += sqrt(((ad_pos - self.coordinate[j]) ** 2).sum())'''
 
-if __name__ == '__main__':
-    import matplotlib.pyplot as plt
-    exp = EXP(r'J:\Monte Carlo\cuos\Cu202_sum.rex', 3, 9, 1, 2.7)
-    plt.plot(exp.r0, exp.ft.imag)
-    plt.plot(exp.r0, exp.ft.real)
-    plt.plot(exp.r0, np.abs(exp.ft))
-    plt.show()
