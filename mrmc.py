@@ -61,7 +61,7 @@ class Worker(QThread):
         self.rep = np.array([], dtype=RMC4)
         self.file_inp = ''
         self.backup_count = 2000
-        self.r2chi = False
+        self.r2chi = True
 
     def init(self):
         self.rep = np.empty(self.rep_size, dtype=RMC4)
