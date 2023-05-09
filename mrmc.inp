@@ -5,7 +5,7 @@ exp3: J:\Monte Carlo\cuos\Cu211_sum_d.rex
 weight: 3
 
 [model setting]
-replicas_size:100
+replicas_size:10
 surface:TiO2
 center_atom[element coor1 coor2 coor3]
 Cu 1.84 0 0
@@ -14,7 +14,7 @@ S 2.15 -1 30
 END
 coordinate_system[True=spherical, False=cartesian]:True
 random_deposition[True=randomly initial adsorbed point]:True
-move_pattern[True=all replicas move every step]:False
+move_pattern[True=all replicas move every step]:True
 trial_count[[target, moving], prevent random walk choke, optiona]: 100 100
 step_min[[center satellite], minimum step of moving], optiona]:0.01 0.01
 step_max[[center satellite], maximum step of moving], optiona]:2 0.1

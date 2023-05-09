@@ -44,15 +44,17 @@ class EXP:
         self.k0 = np.array([])
         self.k = np.array([])
         self.chi = np.array([])
+        self.ft = np.array([])
+        self.r = np.arange(0, 6 + pi / 102.4, pi / 102.4)
+        self.r_range = np.where((r_start < self.r) & (self.r < r_end))[0]
 
         self.init()
-        self.r = np.arange(0, 6 + pi / 102.4, pi / 102.4)
-        self.ft = np.abs(norm_fft(self.chi, self.r.size))
         self.max = [np.argmax(np.abs(self.chi)), np.max(np.abs(self.chi))]
 
     def init(self):
         self.read_exp(self.name)
-        self.r2_bottom = np.sum(self.chi ** 2)
+        self.chi_bottom = np.sum(self.chi ** 2)
+        self.ft_bottom = np.sum(self.ft[self.r_range] ** 2)
 
     def read_exp(self, filename='703K_diff_H2-dry.rex'):
         # reading oscillation data
@@ -99,10 +101,13 @@ class EXP:
 
     def process(self, source):
         self.k, chi = k_range(self.k0, source, self.k_start, self.k_end, False)
-        self.chi = back_k_space(chi, self.k.size, self.r_start, self.r_end)
+        self.chi, self.ft = back_k_space(chi, self.r, self.k.size, self.r_start, self.r_end)
 
-    def r_factor(self, target):
-        return np.sum(np.power(np.subtract(self.chi, target), 2)) / self.r2_bottom
+    def r_factor_chi(self, target):
+        return np.sum(np.power(np.subtract(self.chi, target), 2)) / self.chi_bottom
+
+    def r_factor_ft(self, target):
+        return np.sum(np.power(np.subtract(self.ft[self.r_range], target[self.r_range]), 2)) / self.ft_bottom
 
     def amp_ratio(self, target):
         amp = (self.max[1] / np.abs(target)[self.max[0]]) - 1
@@ -442,20 +447,6 @@ class ATOMS:
             self.center_e = self.element_whole[-self.local_size].copy()
             self.satellite_c = self.coordinate_whole[-self.local_size - 1:].copy()
             self.satellite_e = self.element_whole[-self.local_size - 1:].copy()
-            if self.surface == 'TiO2':
-                self.y1 = -1.93
-                self.y2l = -6.45
-                self.rx = 4.95
-                self.rxl = 6.09
-                self.elevation = 65 / 180 * pi
-                self.eccenter = np.array([-0.52, self.y1])
-                self.dangling = np.array([], dtype=int)
-                for i in range(self.surface_e.size):
-                    if self.surface_e[i] == 'Ti' and (self.surface_c[i][1] == -13.011 or
-                                           abs(self.surface_c[i][1]) == 6.505 or
-                                           self.surface_c[i][1] == 0):
-                        self.dangling = np.append(self.dangling, self.surface_c[i])
-                self.dangling = np.reshape(self.dangling, (int(self.dangling.size / 3), 3))
         else:
             self.coordinate = coordinate.reshape(distance.size, 3)
             self.distance = distance.copy()
@@ -544,10 +535,10 @@ class ATOMS:
                 trials -= 1
                 continue
 
-            if self.surface == 'TiO2':
+            '''if self.surface == 'TiO2':
                 if not self.tca_filter(self.cw_temp[-1]):
                     trials -= 1
-                    continue
+                    continue'''
 
             distance = get_distance(self.cw_temp - self.cw_temp[-self.local_size])
             self.c_temp = self.cw_temp[-self.local_size:].copy()
@@ -664,3 +655,10 @@ class ATOMS:
             for j in neighbor:
                 distance_sum[i] += sqrt(((ad_pos - self.coordinate[j]) ** 2).sum())'''
 
+if __name__ == '__main__':
+    import matplotlib.pyplot as plt
+    exp = EXP(r'J:\Monte Carlo\cuos\Cu202_sum.rex', 3, 9, 1, 2.7)
+    plt.plot(exp.r0, exp.ft.imag)
+    plt.plot(exp.r0, exp.ft.real)
+    plt.plot(exp.r0, np.abs(exp.ft))
+    plt.show()

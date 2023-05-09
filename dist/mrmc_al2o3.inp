@@ -1,0 +1,34 @@
+[experimental data (.rex)]
+exp1:J:\test\Cu05-s.rex
+exp2:J:\test\Cu08-p.rex
+exp3:
+weight: 3
+
+[model setting]
+replicas_size:10
+surface:Al2O3
+center_atom[element coor1 coor2 coor3]
+Cu 0 0 2
+satellite_atoms[element coor1 coor2 coor3]
+
+END
+coordinate_system[True=spherical, False=cartesian]:False
+random_deposition[True=randomly initial adsorbed point]:True
+move_pattern[True=all replicas move every step]:True
+trial_count[[target, moving], prevent random walk choke]: 100 100
+step_min[[center satellite], minimum step of moving]:0.01 0.01
+step_max[[center satellite], maximum step of moving]:2 0.1
+surface_range[[xmin, xmax, ymin, ymax, zmin, zmax], optional]:
+
+[spectrum setting]
+S0:0.8
+SIG2:0.0064
+k_range[low high]:3.5 9
+r_range[low high]:1 3
+delta_E[setting for each satellite atom]:16 16
+rpath[valid only for surface included]:2.8
+multiscattering[True=enable]:False
+
+[path setting]
+material_folder[back scattering data]:J:\test\
+simulation_folder:J:\test\present\al2o3
