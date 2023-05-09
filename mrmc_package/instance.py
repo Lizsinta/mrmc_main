@@ -98,8 +98,8 @@ class EXP:
         self.process(chi0)'''
 
     def process(self, source):
-        chi_ift = back_k_space(source, self.k0.size, self.r_start, self.r_end)
-        self.k, self.chi = k_range(self.k0, chi_ift, self.k_start, self.k_end, False)
+        self.k, chi = k_range(self.k0, source, self.k_start, self.k_end, False)
+        self.chi = back_k_space(chi, self.k.size, self.r_start, self.r_end)
 
     def r_factor(self, target):
         return np.sum(np.power(np.subtract(self.chi, target), 2)) / self.r2_bottom
