@@ -8,7 +8,6 @@ class TABLE_POL:
     def __init__(self, k_head, k_tail, r_head, r_tail, sig2, dE, s02, k0, coor, element,
                  folder, polarization=-1, ms_en=False, weight=3):
         self.k0 = k0
-        self.k = np.array([])
         self.k_head = k_head
         self.k_tail = k_tail
         self.r_head = r_head
@@ -23,6 +22,10 @@ class TABLE_POL:
         self.pol = polarization
         self.ms_en = ms_en
         self.weight = weight
+        self.k = np.array([])
+        self.chi = np.array([])
+        self.r = np.arange(0, 6 + pi / 102.4, pi / 102.4)
+        self.ft = np.array([])
 
         self.atom = np.array([])
         self.amount = self.distance.size
@@ -64,7 +67,7 @@ class TABLE_POL:
         if ms_en:
             self.create_commute()
             self.create_multi()
-        self.chi = self.sum_up_chi(True)
+        self.sum_up_chi(True)
         # print('create', timer()-start)
 
     def read_ini(self, file):
@@ -255,7 +258,7 @@ class TABLE_POL:
             self.k, chi_cut = k_range(self.k0, chi0, self.k_head, self.k_tail, False)
         else:
             k, chi_cut = k_range(self.k0, chi0, self.k_head, self.k_tail, False)
-        return back_k_space(chi_cut, self.k.size, self.r_head, self.r_tail)
+        self.chi, self.ft = back_k_space(chi_cut, self.r, self.k.size, self.r_head, self.r_tail)
 
 
     def moving(self, target, coor, debug=False):
@@ -278,7 +281,7 @@ class TABLE_POL:
             self.log_3rd_temp = self.log_3rd.copy()
 
         self.modify_chi(target)
-        self.chi = self.sum_up_chi()
+        self.sum_up_chi()
         # print('modify', timer() - start)
 
     def recover(self, target, coor, debug=False):
@@ -299,7 +302,7 @@ class TABLE_POL:
             self.log_2nd = self.log_2nd_temp.copy()
             self.log_3rd = self.log_3rd_temp.copy()
 
-        self.chi = self.sum_up_chi()
+        self.sum_up_chi()
 
     def moving_group(self, coor, dist, elem, debug=False):
         self.coordinate = coor
@@ -339,7 +342,7 @@ class TABLE_POL:
         if self.ms_en:
             self.create_commute()
             self.create_multi()
-        self.chi = self.sum_up_chi(False)
+        self.sum_up_chi(False)
 
     def recover_group(self, coor, dist, elem, debug=False):
         self.coordinate = coor
@@ -367,4 +370,4 @@ class TABLE_POL:
         if debug:
             # print('recover2', dist.size, elem.size, self.amount, self.log_1st.size)
             print('chi_1st:', self.chi_1st.shape)
-        self.chi = self.sum_up_chi(False, debug)
+        self.sum_up_chi(False, debug)

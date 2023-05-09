@@ -5,7 +5,7 @@ import PyQt5
 import matplotlib
 import pyqtgraph
 
-from mrmc_package.kmod import k_range, deltaE_shift, back_k_space, intp1D, norm_fft
+from mrmc_package.kmod import k_range, deltaE_shift, back_k_space, intp1D, norm_fft, fft_cut
 from mrmc_package.table.table1 import cal_angle, FEFF
 from mrmc_package.file_FT import folder_create
 from mrmc_package.instance import ATOMS, EXP, CHI, metropolis, get_distance

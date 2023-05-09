@@ -44,15 +44,17 @@ class EXP:
         self.k0 = np.array([])
         self.k = np.array([])
         self.chi = np.array([])
+        self.ft = np.array([])
+        self.r = np.arange(0, 6 + pi / 102.4, pi / 102.4)
+        self.r_range = np.where((r_start < self.r) & (self.r < r_end))[0]
 
         self.init()
-        self.r = np.arange(0, 6 + pi / 102.4, pi / 102.4)
-        self.ft = np.abs(norm_fft(self.chi, self.r.size))
         self.max = [np.argmax(np.abs(self.chi)), np.max(np.abs(self.chi))]
 
     def init(self):
         self.read_exp(self.name)
-        self.r2_bottom = np.sum(self.chi ** 2)
+        self.chi_bottom = np.sum(self.chi ** 2)
+        self.ft_bottom = np.sum(self.ft[self.r_range] ** 2)
 
     def read_exp(self, filename='703K_diff_H2-dry.rex'):
         # reading oscillation data
@@ -99,10 +101,13 @@ class EXP:
 
     def process(self, source):
         self.k, chi = k_range(self.k0, source, self.k_start, self.k_end, False)
-        self.chi = back_k_space(chi, self.k.size, self.r_start, self.r_end)
+        self.chi, self.ft = back_k_space(chi, self.r, self.k.size, self.r_start, self.r_end)
 
-    def r_factor(self, target):
-        return np.sum(np.power(np.subtract(self.chi, target), 2)) / self.r2_bottom
+    def r_factor_chi(self, target):
+        return np.sum(np.power(np.subtract(self.chi, target), 2)) / self.chi_bottom
+
+    def r_factor_ft(self, target):
+        return np.sum(np.power(np.subtract(self.ft[self.r_range], target[self.r_range]), 2)) / self.ft_bottom
 
     def amp_ratio(self, target):
         amp = (self.max[1] / np.abs(target)[self.max[0]]) - 1
@@ -650,3 +655,10 @@ class ATOMS:
             for j in neighbor:
                 distance_sum[i] += sqrt(((ad_pos - self.coordinate[j]) ** 2).sum())'''
 
+if __name__ == '__main__':
+    import matplotlib.pyplot as plt
+    exp = EXP(r'J:\Monte Carlo\cuos\Cu202_sum.rex', 3, 9, 1, 2.7)
+    plt.plot(exp.r0, exp.ft.imag)
+    plt.plot(exp.r0, exp.ft.real)
+    plt.plot(exp.r0, np.abs(exp.ft))
+    plt.show()

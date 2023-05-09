@@ -77,9 +77,13 @@ def deltaE_shift(k=np.array([]), xi=np.array([]), dE=0.0, factor=0.2624683854935
     return padding
 
 
-def back_k_space(array=np.array([]), k_size=401, r_head=0.0, r_tail=6.0):
-    r = np.arange(0, 6 + pi / 102.4, pi / 102.4)
+def back_k_space(array=np.array([]), r=np.array([]), k_size=401, r_head=0.0, r_tail=6.0):
     chi_ft = fft(array, 2048)[:r.size]
     chi_ft_cut = k_range(r, chi_ft, r_head, r_tail)
-    return ifft(chi_ft_cut, 2048)[:k_size].real*2
+    return ifft(chi_ft_cut, 2048)[:k_size].real * 2, np.abs(chi_ft_cut) / 1024
+
+
+def fft_cut(array=np.array([]), r=np.array([]), r_head=0.0, r_tail=6.0):
+    return np.abs(k_range(r, fft(array, 2048)[:r.size], r_head, r_tail)) / 1024
+
 

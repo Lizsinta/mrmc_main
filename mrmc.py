@@ -1,7 +1,7 @@
 import time
 
 from mrmc_package import EXP, RMC4, metropolis, Ui_MainWindow_Pol, folder_create, \
-    scatter, line, init_3dplot, plot_Al2O3, plot_TiO2
+    scatter, line, init_3dplot, plot_Al2O3, plot_TiO2, fft_cut
 
 import os
 from time import perf_counter as timer
@@ -61,6 +61,7 @@ class Worker(QThread):
         self.rep = np.array([], dtype=RMC4)
         self.file_inp = ''
         self.backup_count = 2000
+        self.r2chi = False
 
     def init(self):
         self.rep = np.empty(self.rep_size, dtype=RMC4)
@@ -74,9 +75,9 @@ class Worker(QThread):
             self.rep[index] = RMC4(index, self.exp, self.sig2, self.E0, self.S0, data_base=self.material_folder,
                                    path=self.folder, init_pos=self.init_pos.copy(), init_element=self.init_element,
                                    spherical=self.spherical, random=self.random_init, local_range=self.local_range,
-                                   surface=self.surface, surface_range=self.surface_range, step=self.step_min,
-                                   step_range=self.step_max, ini_flag=True, ms=self.multiscattering_en,
-                                   weight=self.weight, trial=self.trial)
+                                   surface=self.surface, surface_range=self.surface_range, r2chi=self.r2chi,
+                                   step=self.step_min, step_range=self.step_max, ini_flag=True,
+                                   ms=self.multiscattering_en, weight=self.weight, trial=self.trial)
             self.rep[index].table_init()
         print('replica created')
         with open(self.folder + r'/model.dat', 'w') as f:
@@ -110,8 +111,13 @@ class Worker(QThread):
             f.write('\n')
         print('initial model saved')
         self.chi_sum = chi_average(self.rep, self.exp.size)
-        r_new_pol = np.array([self.exp[_].r_factor(self.chi_sum[_]) for _ in range(self.exp.size)])
-        self.sig_plotinfo.emit(self.chi_sum, r_new_pol)
+        if self.r2chi:
+            r_new_pol = np.array([self.exp[_].r_factor_chi(self.chi_sum[_]) for _ in range(self.exp.size)])
+        else:
+            self.ft_sum = np.array([fft_cut(self.chi_sum[_], self.exp[_].r, self.exp[_].r_start,
+                                            self.exp[_].r_end) for _ in range(self.exp.size)])
+            r_new_pol = np.array([self.exp[_].r_factor_ft(self.ft_sum[_]) for _ in range(self.exp.size)])
+        self.sig_plotinfo.emit(self.chi_sum if self.r2chi else self.ft_sum, r_new_pol)
         self.sig_init3d.emit(self.surface, self.rep_size)
         self.r_now = r_new_pol.sum()
         self.r_lowest = self.r_now
@@ -162,14 +168,19 @@ class Worker(QThread):
             self.rep[index] = RMC4(index, self.exp, self.sig2, self.E0, self.S0, data_base=self.material_folder,
                                    path=self.folder, init_pos=self.init_pos.copy(), init_element=self.init_element,
                                    spherical=self.spherical, random=self.random_init, local_range=self.local_range,
-                                   surface=self.surface, surface_range=self.surface_range, step=self.step_min,
-                                   step_range=self.step_max, ini_flag=False, ms=self.multiscattering_en,
-                                   weight=self.weight, trial=self.trial)
+                                   surface=self.surface, surface_range=self.surface_range, r2chi=self.r2chi,
+                                   step=self.step_min, step_range=self.step_max, ini_flag=False,
+                                   ms=self.multiscattering_en, weight=self.weight, trial=self.trial)
             print('replica %d created' % index)
             self.rep[index].read_result()
 
         self.chi_sum = chi_average(self.rep, self.exp.size)
-        r_new_pol = np.array([self.exp[_].r_factor(self.chi_sum[_]) for _ in range(self.exp.size)])
+        if self.r2chi:
+            r_new_pol = np.array([self.exp[_].r_factor_chi(self.chi_sum[_]) for _ in range(self.exp.size)])
+        else:
+            self.ft_sum = np.array([fft_cut(self.chi_sum[_], self.exp[_].r, self.exp[_].r_start,
+                                            self.exp[_].r_end) for _ in range(self.exp.size)])
+            r_new_pol = np.array([self.exp[_].r_factor_ft(self.ft_sum[_]) for _ in range(self.exp.size)])
         self.r_now = r_new_pol.sum()
         self.chi_sum_best = self.chi_sum.copy()
 
@@ -181,7 +192,7 @@ class Worker(QThread):
         self.sig_tau.emit(self.tau_t, self.tau_i)
         self.tau_ratio = self.tau_i / self.tau_t
 
-        self.sig_plotinfo.emit(self.chi_sum, r_new_pol)
+        self.sig_plotinfo.emit(self.chi_sum if self.r2chi else self.ft_sum, r_new_pol)
         self.sig_init3d.emit(self.surface, self.rep_size)
         print('information displayed')
         return True
@@ -513,7 +524,12 @@ class Worker(QThread):
                 self.step_count += 1
                 self.sig_step.emit(self.step_count)
                 self.chi_sum = chi_average(self.rep, self.exp.size)
-                r_new_pol = np.array([self.exp[_].r_factor(self.chi_sum[_]) for _ in range(self.exp.size)])
+                if self.r2chi:
+                    r_new_pol = np.array([self.exp[_].r_factor_chi(self.chi_sum[_]) for _ in range(self.exp.size)])
+                else:
+                    self.ft_sum = np.array([fft_cut(self.chi_sum[_], self.exp[_].r, self.exp[_].r_start,
+                                                    self.exp[_].r_end) for _ in range(self.exp.size)])
+                    r_new_pol = np.array([self.exp[_].r_factor_ft(self.ft_sum[_]) for _ in range(self.exp.size)])
                 r_new = r_new_pol.sum()
                 if metropolis(self.r_now, r_new, self.tau_t):
                     if r_new < self.r_lowest:
@@ -545,7 +561,7 @@ class Worker(QThread):
                     for replica in move_array:
                         if not trials[replica] == 0:
                             self.rep[replica].accept()
-                    self.sig_plotinfo.emit(self.chi_sum, r_new_pol)
+                    self.sig_plotinfo.emit(self.chi_sum if self.r2chi else self.ft_sum, r_new_pol)
                     self.r_now = r_new
                     self.r_now_pol = r_new_pol.copy()
                     self.sig_current.emit(self.r_now)
@@ -680,8 +696,16 @@ class MainWindow(QMainWindow, Ui_MainWindow_Pol):
             self.current_label_p2.setText('NULL')
             self.current_label_p3.setText('NULL')
 
-        self.line_exp = np.array([line(self.thread.exp[_].k, self.thread.exp[_].chi, c='black', width=3)
-                                  for _ in range(self.thread.exp.size)])
+        if self.thread.r2chi:
+            self.line_exp = np.array([line(self.thread.exp[_].k, self.thread.exp[_].chi, c='black', width=3)
+                                      for _ in range(self.thread.exp.size)])
+        else:
+            for i in range(len(self.plot)):
+                self.plot[i].setLabel('left', 'FT', unit='A.U.')
+                self.plot[i].setLabel('bottom', 'R', unit='Å')
+            self.line_exp = np.array([line(self.thread.exp[_].r, self.thread.exp[_].ft, c='black', width=3)
+                                      for _ in range(self.thread.exp.size)])
+
         self.line_chi = np.array([])
         for i in range(self.line_exp.size):
             self.plot[i].addItem(self.line_exp[i])
@@ -926,13 +950,21 @@ class MainWindow(QMainWindow, Ui_MainWindow_Pol):
 
     def pol_info(self, chik, factor):
         if len(self.polx.plotItem.items) == 1:
-            self.line_chi = np.array([line(self.thread.exp[_].k, chik[_], c='red', width=3
-                                           ) for _ in range(self.thread.exp.size)])
+            if self.thread.r2chi:
+                self.line_chi = np.array([line(self.thread.exp[_].k, chik[_], c='red', width=3
+                                               ) for _ in range(self.thread.exp.size)])
+            else:
+                self.line_chi = np.array([line(self.thread.exp[_].r, chik[_], c='red', width=3
+                                               ) for _ in range(self.thread.exp.size)])
             for i in range(self.thread.exp.size):
                 self.plot[i].addItem(self.line_chi[i])
         else:
-            for i in range(self.thread.exp.size):
-                self.line_chi[i].setData(x=self.thread.exp[i].k, y=chik[i])
+            if self.thread.r2chi:
+                for i in range(self.thread.exp.size):
+                    self.line_chi[i].setData(x=self.thread.exp[i].k, y=chik[i])
+            else:
+                for i in range(self.thread.exp.size):
+                    self.line_chi[i].setData(x=self.thread.exp[i].r, y=chik[i])
 
         for i in range(self.r_aver.size):
             dist = np.array([replica.cell.distance[i + 1] for replica in self.thread.rep])

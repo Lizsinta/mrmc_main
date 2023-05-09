@@ -7,7 +7,7 @@ import numpy as np
 
 class RMC4:
     def __init__(self, index, exp, sig2, energy, s02, data_base, path, init_pos=np.array([]), init_element=np.array([]),
-                 spherical=True, random=True, local_range=3.0, surface='', surface_range=np.array([]),
+                 spherical=True, random=True, local_range=3.0, surface='', surface_range=np.array([]), r2chi=True,
                  step=np.array([]), step_range=np.array([]), ini_flag=True, ms=False, weight=3, trial=np.array([])):
         self.index = index
         self.data_base = data_base
@@ -21,6 +21,7 @@ class RMC4:
         self.ms = ms
         self.weight = weight
         self.trial = trial[0]
+        self.r2chi = r2chi
 
         self.cell = ATOMS(database=data_base, file=path, pos=init_pos, element=init_element, spherical=spherical,
                           random=random, local_range=local_range, surface=surface, step=step, step_range=step_range,
@@ -35,7 +36,10 @@ class RMC4:
                                          self.exp[i].r_end, self.sig2, self.energy, self.s02, self.exp[i].k0,
                                          self.cell.coordinate.copy(), self.cell.element.copy(),
                                          self.data_base, i, ms_en=self.ms, weight=self.weight) for i in pol])
-        self.r_factor_i = np.array([self.exp[_].r_factor(self.table[_].chi) for _ in range(self.exp.size)])
+        if self.r2chi:
+            self.r_factor_i = np.array([self.exp[_].r_factor_chi(self.table[_].chi) for _ in range(self.exp.size)])
+        else:
+            self.r_factor_i = np.array([self.exp[_].r_factor_ft(self.table[_].ft) for _ in range(self.exp.size)])
         self.r_factor_t = self.r_factor_i.sum()
 
     def walk(self, tau):
@@ -74,7 +78,10 @@ class RMC4:
                 else:
                     self.moved_atom = target
             if not tau == 1:
-                r_factor_i = np.array([self.exp[_].r_factor(self.table[_].chi) for _ in range(self.exp.size)])
+                if self.r2chi:
+                    r_factor_i = np.array([self.exp[_].r_factor_chi(self.table[_].chi) for _ in range(self.exp.size)])
+                else:
+                    r_factor_i = np.array([self.exp[_].r_factor_ft(self.table[_].ft) for _ in range(self.exp.size)])
                 r_factor_new = r_factor_i.sum()
                 if np.array([metropolis(self.r_factor_i[_], r_factor_i[_], tau) for _ in range(self.exp.size)]).all():
                 #if metropolis(self.r_factor_t, r_factor_new, tau):
@@ -154,5 +161,8 @@ class RMC4:
                                          self.cell.coordinate.copy(), self.cell.element.copy(),
                                          self.data_base, i, ms_en=self.ms, weight=self.weight) for i in pol])
         print('table set up')
-        self.r_factor_i = np.array([self.exp[_].r_factor(self.table[_].chi) for _ in range(self.exp.size)])
+        if self.r2chi:
+            self.r_factor_i = np.array([self.exp[_].r_factor_chi(self.table[_].chi) for _ in range(self.exp.size)])
+        else:
+            self.r_factor_i = np.array([self.exp[_].r_factor_ft(self.table[_].ft) for _ in range(self.exp.size)])
         self.r_factor_t = self.r_factor_i.sum()
