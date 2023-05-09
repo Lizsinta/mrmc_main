@@ -655,10 +655,3 @@ class ATOMS:
             for j in neighbor:
                 distance_sum[i] += sqrt(((ad_pos - self.coordinate[j]) ** 2).sum())'''
 
-if __name__ == '__main__':
-    import matplotlib.pyplot as plt
-    exp = EXP(r'J:\Monte Carlo\cuos\Cu202_sum.rex', 3, 9, 1, 2.7)
-    plt.plot(exp.r0, exp.ft.imag)
-    plt.plot(exp.r0, exp.ft.real)
-    plt.plot(exp.r0, np.abs(exp.ft))
-    plt.show()
