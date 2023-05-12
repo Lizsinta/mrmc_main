@@ -447,6 +447,20 @@ class ATOMS:
             self.center_e = self.element_whole[-self.local_size].copy()
             self.satellite_c = self.coordinate_whole[-self.local_size - 1:].copy()
             self.satellite_e = self.element_whole[-self.local_size - 1:].copy()
+            if self.surface == 'TiO2':
+                self.y1 = -1.93
+                self.y2l = -6.45
+                self.rx = 4.95
+                self.rxl = 6.09
+                self.elevation = 65 / 180 * pi
+                self.eccenter = np.array([-0.52, self.y1])
+                self.dangling = np.array([], dtype=int)
+                for i in range(self.surface_e.size):
+                    if self.surface_e[i] == 'Ti' and (self.surface_c[i][1] == -13.011 or
+                                                      abs(self.surface_c[i][1]) == 6.505 or
+                                                      self.surface_c[i][1] == 0):
+                        self.dangling = np.append(self.dangling, self.surface_c[i])
+                self.dangling = np.reshape(self.dangling, (int(self.dangling.size / 3), 3))
         else:
             self.coordinate = coordinate.reshape(distance.size, 3)
             self.distance = distance.copy()

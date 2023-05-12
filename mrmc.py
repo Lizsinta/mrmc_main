@@ -700,14 +700,14 @@ class MainWindow(QMainWindow, Ui_MainWindow_Pol):
             self.line_exp = np.array([line(self.thread.exp[_].k, self.thread.exp[_].chi, c='black', width=3)
                                       for _ in range(self.thread.exp.size)])
         else:
-            for i in range(len(self.plot)):
+            for i in range(self.thread.exp.size):
                 self.plot[i].setLabel('left', 'FT', unit='A.U.')
                 self.plot[i].setLabel('bottom', 'R', unit='Å')
             self.line_exp = np.array([line(self.thread.exp[_].r, self.thread.exp[_].ft, c='black', width=3)
                                       for _ in range(self.thread.exp.size)])
 
         self.line_chi = np.array([])
-        for i in range(self.line_exp.size):
+        for i in range(self.thread.exp.size):
             self.plot[i].addItem(self.line_exp[i])
 
         self.r_aver = np.zeros(self.thread.init_element.size - 1)
