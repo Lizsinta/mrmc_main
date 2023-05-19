@@ -61,7 +61,7 @@ class Worker(QThread):
         self.rep = np.array([], dtype=RMC4)
         self.file_inp = ''
         self.backup_count = 2000
-        self.r2chi = False
+        self.r2chi = True
 
     def init(self):
         self.rep = np.empty(self.rep_size, dtype=RMC4)
@@ -466,6 +466,19 @@ class Worker(QThread):
                 self.sig_warning.emit('multi-scattering parameter error')
                 return False
 
+            cf_space = f.readline().split(':')
+            if cf_space[0].find('fitting_space') == -1:
+                self.sig_warning.emit('fitting_space line missing')
+                return False
+            temp = cf_space[1].strip()
+            if temp == 'K' or temp == 'k':
+                self.r2chi = True
+            elif temp == 'R' or temp == 'r':
+                self.r2chi = False
+            else:
+                self.sig_warning.emit('fitting_space parameter error')
+                return False
+
             while True:
                 if not f.readline().find('path') == -1:
                     break
@@ -496,6 +509,7 @@ class Worker(QThread):
         print('k range:%f %f\nr range:%f %f' % (k_range[0], k_range[1], r_range[0], r_range[1]))
         print('E0:', self.E0)
         print('rpath:%f\nmulti scattering:' % self.local_range, self.multiscattering_en)
+        print('fitting space:%s' % 'k' if self.r2chi else 'R')
         print('material folder:%s\nsimulation name:%s' % (self.material_folder, self.simulation_name))
 
         self.r_now_pol = np.zeros(self.exp.size)
@@ -512,7 +526,13 @@ class Worker(QThread):
     def run(self):
         self.sig_statusbar.emit('Running', 0)
         trials = np.zeros(self.rep_size)
+        stamp0 = timer()
         while True:
+            if self.step_count % 100 == 0:
+                stamp1 = timer()
+                if stamp1 - stamp0 < 1:
+                    sleep(1)
+                stamp0 = stamp1
             if self.step_count % self.backup_count == 0:
                 self.sig_backup.emit(True)
                 self.flag = False
