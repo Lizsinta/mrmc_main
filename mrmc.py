@@ -32,7 +32,7 @@ def chi_average(input_array=np.array([]), size=3):
 
 
 class Worker(QThread):
-    sig_plotinfo = pyqtSignal(np.ndarray, np.ndarray)
+    sig_plotinfo = pyqtSignal(np.ndarray, np.ndarray, np.ndarray)
     sig_plot3d = pyqtSignal(int, int, np.ndarray)
     sig_init3d = pyqtSignal(str, int)
     sig_folder = pyqtSignal(str)
@@ -61,7 +61,7 @@ class Worker(QThread):
         self.rep = np.array([], dtype=RMC4)
         self.file_inp = ''
         self.backup_count = 2000
-        self.r2chi = True
+        self.fit_space = 'x'
 
     def init(self):
         self.rep = np.empty(self.rep_size, dtype=RMC4)
@@ -75,7 +75,7 @@ class Worker(QThread):
             self.rep[index] = RMC4(index, self.exp, self.sig2, self.E0, self.S0, data_base=self.material_folder,
                                    path=self.folder, init_pos=self.init_pos.copy(), init_element=self.init_element,
                                    spherical=self.spherical, random=self.random_init, local_range=self.local_range,
-                                   surface=self.surface, surface_range=self.surface_range, r2chi=self.r2chi,
+                                   surface=self.surface, surface_range=self.surface_range, r2chi=self.fit_space,
                                    step=self.step_min, step_range=self.step_max, ini_flag=True,
                                    ms=self.multiscattering_en, weight=self.weight, trial=self.trial)
             self.rep[index].table_init()
@@ -111,13 +111,18 @@ class Worker(QThread):
             f.write('\n')
         print('initial model saved')
         self.chi_sum = chi_average(self.rep, self.exp.size)
-        if self.r2chi:
+        if self.fit_space == 'k':
             r_new_pol = np.array([self.exp[_].r_factor_chi(self.chi_sum[_]) for _ in range(self.exp.size)])
-        else:
+        elif self.fit_space == 'r':
             self.ft_sum = np.array([fft_cut(self.chi_sum[_], self.exp[_].r, self.exp[_].r_start,
                                             self.exp[_].r_end) for _ in range(self.exp.size)])
             r_new_pol = np.array([self.exp[_].r_factor_ft(self.ft_sum[_]) for _ in range(self.exp.size)])
-        self.sig_plotinfo.emit(self.chi_sum if self.r2chi else self.ft_sum, r_new_pol)
+        else:
+            self.ft_sum = np.array([fft_cut(self.chi_sum[_], self.exp[_].r, self.exp[_].r_start,
+                                            self.exp[_].r_end) for _ in range(self.exp.size)])
+            r_new_pol = np.array([self.exp[_].r_factor_cross(
+                self.chi_sum[_] * np.transpose([self.ft_sum[_]])) for _ in range(self.exp.size)])
+        self.sig_plotinfo.emit(self.chi_sum if not self.fit_space == 'r' else self.ft_sum, r_new_pol, self.ft_sum)
         self.sig_init3d.emit(self.surface, self.rep_size)
         self.r_now = r_new_pol.sum()
         self.r_lowest = self.r_now
@@ -168,19 +173,24 @@ class Worker(QThread):
             self.rep[index] = RMC4(index, self.exp, self.sig2, self.E0, self.S0, data_base=self.material_folder,
                                    path=self.folder, init_pos=self.init_pos.copy(), init_element=self.init_element,
                                    spherical=self.spherical, random=self.random_init, local_range=self.local_range,
-                                   surface=self.surface, surface_range=self.surface_range, r2chi=self.r2chi,
+                                   surface=self.surface, surface_range=self.surface_range, r2chi=self.fit_space,
                                    step=self.step_min, step_range=self.step_max, ini_flag=False,
                                    ms=self.multiscattering_en, weight=self.weight, trial=self.trial)
             print('replica %d created' % index)
             self.rep[index].read_result()
 
         self.chi_sum = chi_average(self.rep, self.exp.size)
-        if self.r2chi:
+        if self.fit_space == 'k':
             r_new_pol = np.array([self.exp[_].r_factor_chi(self.chi_sum[_]) for _ in range(self.exp.size)])
-        else:
+        elif self.fit_space == 'r':
             self.ft_sum = np.array([fft_cut(self.chi_sum[_], self.exp[_].r, self.exp[_].r_start,
                                             self.exp[_].r_end) for _ in range(self.exp.size)])
             r_new_pol = np.array([self.exp[_].r_factor_ft(self.ft_sum[_]) for _ in range(self.exp.size)])
+        else:
+            self.ft_sum = np.array([fft_cut(self.chi_sum[_], self.exp[_].r, self.exp[_].r_start,
+                                            self.exp[_].r_end) for _ in range(self.exp.size)])
+            self.cross_sum = np.array([self.chi_sum[_] * np.transpose([self.ft_sum[_]]) for _ in range(self.exp.size)])
+            r_new_pol = np.array([self.exp[_].r_factor_cross(self.cross_sum[_]) for _ in range(self.exp.size)])
         self.r_now = r_new_pol.sum()
         self.chi_sum_best = self.chi_sum.copy()
 
@@ -192,7 +202,7 @@ class Worker(QThread):
         self.sig_tau.emit(self.tau_t, self.tau_i)
         self.tau_ratio = self.tau_i / self.tau_t
 
-        self.sig_plotinfo.emit(self.chi_sum if self.r2chi else self.ft_sum, r_new_pol)
+        self.sig_plotinfo.emit(self.chi_sum if not self.fit_space == 'r' else self.ft_sum, r_new_pol, self.ft_sum)
         self.sig_init3d.emit(self.surface, self.rep_size)
         print('information displayed')
         return True
@@ -458,9 +468,9 @@ class Worker(QThread):
                 self.sig_warning.emit('multi-scattering line missing')
                 return False
             temp = mts[1].strip()
-            if temp == 'True' or temp == 'true' or temp == '1':
+            if temp == 'True' or temp == 'true' or temp == 1:
                 self.multiscattering_en = True
-            elif temp == 'False' or temp == 'false' or temp == '0':
+            elif temp == 'False' or temp == 'false' or temp == 0:
                 self.multiscattering_en = False
             else:
                 self.sig_warning.emit('multi-scattering parameter error')
@@ -483,6 +493,8 @@ class Worker(QThread):
                 self.sig_warning.emit('simulation folder missing')
                 return False
             self.simulation_name = temp.split(temp.split(':')[0] + ':')[1].split('\n')[0].strip()
+            if self.simulation_name[-1] == '\\' or self.simulation_name[-1] == '/':
+                self.simulation_name = self.simulation_name[:-1]
 
         # parameters region
         print(exp_path)
@@ -503,7 +515,7 @@ class Worker(QThread):
         self.chi_sum = np.zeros((self.exp.size, self.exp[0].k.size))
         self.chi_sum_best = np.zeros((self.exp.size, self.exp[0].k.size))
 
-        self.tau_t = 1e-2
+        self.tau_t = 1e-3
         self.tau_ratio = round(sqrt(self.rep_size), 1)
         self.tau_i = self.tau_t * self.tau_ratio
         self.tca_en = False
@@ -524,12 +536,18 @@ class Worker(QThread):
                 self.step_count += 1
                 self.sig_step.emit(self.step_count)
                 self.chi_sum = chi_average(self.rep, self.exp.size)
-                if self.r2chi:
+                if self.fit_space == 'k':
                     r_new_pol = np.array([self.exp[_].r_factor_chi(self.chi_sum[_]) for _ in range(self.exp.size)])
-                else:
+                elif self.fit_space == 'r':
                     self.ft_sum = np.array([fft_cut(self.chi_sum[_], self.exp[_].r, self.exp[_].r_start,
                                                     self.exp[_].r_end) for _ in range(self.exp.size)])
                     r_new_pol = np.array([self.exp[_].r_factor_ft(self.ft_sum[_]) for _ in range(self.exp.size)])
+                else:
+                    self.ft_sum = np.array([fft_cut(self.chi_sum[_], self.exp[_].r, self.exp[_].r_start,
+                                                    self.exp[_].r_end) for _ in range(self.exp.size)])
+                    self.cross_sum = np.array(
+                        [self.chi_sum[_] * np.transpose([self.ft_sum[_]]) for _ in range(self.exp.size)])
+                    r_new_pol = np.array([self.exp[_].r_factor_cross(self.cross_sum[_]) for _ in range(self.exp.size)])
                 r_new = r_new_pol.sum()
                 if metropolis(self.r_now, r_new, self.tau_t):
                     if r_new < self.r_lowest:
@@ -561,7 +579,8 @@ class Worker(QThread):
                     for replica in move_array:
                         if not trials[replica] == 0:
                             self.rep[replica].accept()
-                    self.sig_plotinfo.emit(self.chi_sum if self.r2chi else self.ft_sum, r_new_pol)
+                    self.sig_plotinfo.emit(self.chi_sum if not self.fit_space == 'r' else self.ft_sum,
+                                           r_new_pol, self.ft_sum)
                     self.r_now = r_new
                     self.r_now_pol = r_new_pol.copy()
                     self.sig_current.emit(self.r_now)
@@ -590,22 +609,17 @@ class MainWindow(QMainWindow, Ui_MainWindow_Pol):
         self.thread.sig_warning.connect(self.warning_window)
         self.thread.sig_close.connect(self.close_signal)
 
-        fn = QFont()
-        fn.setPointSize(15)
         self.polx = pg.PlotWidget(background=(255, 255, 255, 255))
         self.poly = pg.PlotWidget(background=(255, 255, 255, 255))
         self.polz = pg.PlotWidget(background=(255, 255, 255, 255))
-        self.polxyz = {0: self.polx, 1: self.poly, 2: self.polz}
+        self.polx2 = pg.PlotWidget(background=(255, 255, 255, 255))
+        self.poly2 = pg.PlotWidget(background=(255, 255, 255, 255))
+        self.polz2 = pg.PlotWidget(background=(255, 255, 255, 255))
+        self.polxyz = {0: self.polx, 1: self.poly, 2: self.polz,
+                       3: self.polx2, 4: self.poly2, 5: self.polz2}
         self.layoutxyz = {0: self.g2dxLayout, 1: self.g2dyLayout, 2: self.g2dzLayout}
         self.plot = {}
-        for i in range(3):
-            self.polxyz[i].setLabel('left', 'χ', unit='A.U.')
-            self.polxyz[i].setLabel('bottom', 'k', unit='Å-1')
-            self.polxyz[i].getAxis('left').setTickFont(fn)
-            self.polxyz[i].getAxis('left').setTextPen('black')
-            self.polxyz[i].getAxis('bottom').setTickFont(fn)
-            self.polxyz[i].getAxis('bottom').setTextPen('black')
-            self.layoutxyz[i].addWidget(self.polxyz[i])
+        self.plotex = {}
 
         self.model = gl.GLViewWidget()
         self.model.setObjectName('model')
@@ -675,40 +689,82 @@ class MainWindow(QMainWindow, Ui_MainWindow_Pol):
         if not len(self.plot) == 0:
             for i in range(len(self.plot)):
                 self.plot[i].removeItem(self.line_exp[i])
+            if self.thread.fit_space == 'x':
+                for i in range(len(self.plotex)):
+                    self.plotex[i].removeItem(self.line_exp[i+len(self.plotex)])
+            if len(self.plotex) > 0 and not self.thread.fit_space == 'x':
+                for i in range(3):
+                    self.layoutxyz[i].removeWidget(self.plotex[i])
+
+        if self.thread.fit_space == 'x':
+            for i in range(3):
+                self.layoutxyz[i].addWidget(self.polxyz[i+3])
         if self.thread.exp.size == 3:
             title = ['Polarization [001]', 'Polarization [1-10]', 'Polarization [110]']
         elif self.thread.exp.size == 2:
-            title = ['Polarization P', '', 'Polarization S']
+            title = ['Polarization S', '', 'Polarization P']
         else:
             title = ['Spectrum']
         for i in range(3):
-            self.polxyz[i].setTitle(title[i], color='#000000', size='20pt')
+            self.polxyz[i].setTitle(title[i], color='#000000', size='18pt')
+            if self.thread.fit_space == 'x':
+                self.polxyz[i+3].setTitle(title[i], color='#000000', size='18pt')
         if self.thread.exp.size == 3:
             self.plot = {0: self.polx, 1: self.poly, 2: self.polz}
+            if self.thread.fit_space == 'x':
+                self.plotex = {0: self.polx2, 1: self.poly2, 2: self.polz2}
+            self.current_label_p1.setText('[001]')
+            self.current_label_p2.setText('[1-10]')
+            self.current_label_p3.setText('[110]')
         elif self.thread.exp.size == 2:
             self.plot = {0: self.polx, 1: self.polz}
-            self.current_label_p1.setText('P-pol')
-            self.current_label_p2.setText('S-pol')
+            if self.thread.fit_space == 'x':
+                self.plotex = {0: self.polx2, 1: self.polz2}
+            self.current_label_p1.setText('S-pol')
+            self.current_label_p2.setText('P-pol')
             self.current_label_p3.setText('NULL')
         else:
             self.plot = {0: self.polx}
+            if self.thread.fit_space == 'x':
+                self.plotex = {0: self.polx2}
             self.current_label_p1.setText('spectrum')
             self.current_label_p2.setText('NULL')
             self.current_label_p3.setText('NULL')
 
-        if self.thread.r2chi:
+        fn = QFont()
+        fn.setPointSize(15)
+        name = ['χ', 'k'] if not self.thread.fit_space == 'r' else ['FT', 'R']
+        for i in range(3):
+            self.polxyz[i].setLabel('left', name[0])
+            self.polxyz[i].setLabel('bottom', name[1])
+            self.polxyz[i].getAxis('left').setTickFont(fn)
+            self.polxyz[i].getAxis('left').setTextPen('black')
+            self.polxyz[i].getAxis('bottom').setTickFont(fn)
+            self.polxyz[i].getAxis('bottom').setTextPen('black')
+            self.layoutxyz[i].addWidget(self.polxyz[i])
+            if self.thread.fit_space == 'x':
+                self.polxyz[i+3].setLabel('left', 'FT')
+                self.polxyz[i+3].setLabel('bottom', 'R')
+                self.polxyz[i+3].getAxis('left').setTickFont(fn)
+                self.polxyz[i+3].getAxis('left').setTextPen('black')
+                self.polxyz[i+3].getAxis('bottom').setTickFont(fn)
+                self.polxyz[i+3].getAxis('bottom').setTextPen('black')
+
+        if not self.thread.fit_space == 'r':
             self.line_exp = np.array([line(self.thread.exp[_].k, self.thread.exp[_].chi, c='black', width=3)
                                       for _ in range(self.thread.exp.size)])
+            if self.thread.fit_space == 'x':
+                self.line_exp = np.append(self.line_exp, np.array([
+                    line(self.thread.exp[_].r_cut, self.thread.exp[_].ft_cut, c='black', width=3)
+                    for _ in range(self.thread.exp.size)]))
         else:
-            for i in range(len(self.plot)):
-                self.plot[i].setLabel('left', 'FT', unit='A.U.')
-                self.plot[i].setLabel('bottom', 'R', unit='Å')
-            self.line_exp = np.array([line(self.thread.exp[_].r, self.thread.exp[_].ft, c='black', width=3)
+            self.line_exp = np.array([line(self.thread.exp[_].r_cut, self.thread.exp[_].ft_cut, c='black', width=3)
                                       for _ in range(self.thread.exp.size)])
-
         self.line_chi = np.array([])
-        for i in range(self.line_exp.size):
+        for i in range(len(self.plot)):
             self.plot[i].addItem(self.line_exp[i])
+            if self.thread.fit_space == 'x':
+                self.plotex[i].addItem(self.line_exp[i + len(self.plot)])
 
         self.r_aver = np.zeros(self.thread.init_element.size - 1)
         self.c2 = np.zeros(self.thread.init_element.size - 1)
@@ -784,6 +840,25 @@ class MainWindow(QMainWindow, Ui_MainWindow_Pol):
                     result.write('\n[experimental spectrum]\n')
                     for _ in range(self.thread.chi_sum[pol].size):
                         result.write('   %f     %f\n' % (self.thread.exp[pol].k[_], self.thread.exp[pol].chi[_]))
+                    if not self.thread.fit_space == 'k':
+                        result.write('\n[calculated FT]\n')
+                        for _ in range(self.thread.ft_sum[pol].size):
+                            result.write('   %f     %f\n' % (self.thread.exp[pol].k[_], self.thread.chi_sum[pol][_]))
+                        result.write('\n[experimental FT]\n')
+                        for _ in range(self.thread.ft_sum[pol].size):
+                            result.write('   %f     %f\n' % (self.thread.exp[pol].r[_], self.thread.exp[pol].ft[_]))
+                    if self.thread.fit_space == 'x':
+                        print(self.thread.cross_sum.shape)
+                        result.write('[calculated cross]\n')
+                        for i in range(self.thread.exp[pol].cross.shape[0]):
+                            for j in range(self.thread.exp[pol].cross.shape[1]):
+                                result.write('%.3f ' % self.thread.cross_sum[pol][i][j])
+                            result.write('\n')
+                        result.write('\n[experimental cross]\n')
+                        for i in range(self.thread.exp[pol].cross.shape[0]):
+                            for j in range(self.thread.exp[pol].cross.shape[1]):
+                                result.write('%.3f ' % self.thread.exp[pol].cross[i][j])
+                            result.write('\n')
             print('chi wrote')
             self.write_info(self.thread.folder)
             print('information wrote')
@@ -841,7 +916,6 @@ class MainWindow(QMainWindow, Ui_MainWindow_Pol):
 
     def write_model(self):
         with open(self.thread.folder + r'/model.dat', 'r+') as f:
-
             while True:
                 lines = f.readline()
                 if not lines.find('initial local model') == -1:
@@ -948,23 +1022,32 @@ class MainWindow(QMainWindow, Ui_MainWindow_Pol):
             self.cal_end()
         event.accept()
 
-    def pol_info(self, chik, factor):
+    def pol_info(self, chik, factor, chiex=np.array([])):
         if len(self.polx.plotItem.items) == 1:
-            if self.thread.r2chi:
+            if not self.thread.fit_space == 'r':
                 self.line_chi = np.array([line(self.thread.exp[_].k, chik[_], c='red', width=3
                                                ) for _ in range(self.thread.exp.size)])
+                if self.thread.fit_space == 'x':
+                    self.line_chi = np.append(self.line_chi, np.array([
+                        line(self.thread.exp[_].r_cut, chiex[_], c='red', width=3)
+                        for _ in range(self.thread.exp.size)]))
             else:
-                self.line_chi = np.array([line(self.thread.exp[_].r, chik[_], c='red', width=3
+                self.line_chi = np.array([line(self.thread.exp[_].r_cut, chik[_], c='red', width=3
                                                ) for _ in range(self.thread.exp.size)])
             for i in range(self.thread.exp.size):
                 self.plot[i].addItem(self.line_chi[i])
+                if self.thread.fit_space == 'x':
+                    self.plotex[i].addItem(self.line_chi[i + self.thread.exp.size])
         else:
-            if self.thread.r2chi:
+            if not self.thread.fit_space == 'r':
                 for i in range(self.thread.exp.size):
                     self.line_chi[i].setData(x=self.thread.exp[i].k, y=chik[i])
+                if self.thread.fit_space == 'x':
+                    for i in range(self.thread.exp.size):
+                        self.line_chi[i + self.thread.exp.size].setData(x=self.thread.exp[i].r_cut, y=chiex[i])
             else:
                 for i in range(self.thread.exp.size):
-                    self.line_chi[i].setData(x=self.thread.exp[i].r, y=chik[i])
+                    self.line_chi[i].setData(x=self.thread.exp[i].r_cut, y=chik[i])
 
         for i in range(self.r_aver.size):
             dist = np.array([replica.cell.distance[i + 1] for replica in self.thread.rep])
@@ -975,7 +1058,7 @@ class MainWindow(QMainWindow, Ui_MainWindow_Pol):
 
         self.current_lcd_p1.display(factor[0])
         self.current_lcd_p2.display(factor[1])
-        if self.line_exp.size > 2:
+        if self.thread.exp.size > 2:
             self.current_lcd_p3.display(factor[2])
 
     def tau_t_change(self):

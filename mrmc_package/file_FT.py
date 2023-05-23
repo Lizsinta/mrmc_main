@@ -179,7 +179,7 @@ def folder_create(name):
     index = int(1)
     while True:
         if os.path.isdir(name):
-            name_new = name + str(index)
+            name_new = name + '_' + str(index)
             if os.path.isdir(name_new):
                 index += 1
             else:
