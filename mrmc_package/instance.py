@@ -45,8 +45,11 @@ class EXP:
         self.k = np.array([])
         self.chi = np.array([])
         self.ft = np.array([])
+        self.cross = np.array([])
         self.r = np.arange(0, 6 + pi / 102.4, pi / 102.4)
         self.r_range = np.where((r_start < self.r) & (self.r < r_end))[0]
+        self.r_cut = np.array([])
+        self.ft_cut = np.array([])
 
         self.init()
         self.max = [np.argmax(np.abs(self.chi)), np.max(np.abs(self.chi))]
@@ -54,7 +57,8 @@ class EXP:
     def init(self):
         self.read_exp(self.name)
         self.chi_bottom = np.sum(self.chi ** 2)
-        self.ft_bottom = np.sum(self.ft[self.r_range] ** 2)
+        self.ft_bottom = np.sum(self.ft_cut ** 2)
+        self.cross_bottom = np.sum(self.cross ** 2)
 
     def read_exp(self, filename='703K_diff_H2-dry.rex'):
         # reading oscillation data
@@ -102,12 +106,18 @@ class EXP:
     def process(self, source):
         self.k, chi = k_range(self.k0, source, self.k_start, self.k_end, False)
         self.chi, self.ft = back_k_space(chi, self.r, self.k.size, self.r_start, self.r_end)
+        self.r_cut = self.r[self.r_range]
+        self.ft_cut = self.ft[self.r_range]
+        self.cross = self.chi * np.transpose([self.ft_cut])
 
     def r_factor_chi(self, target):
-        return np.sum(np.power(np.subtract(self.chi, target), 2)) / self.chi_bottom
+        return np.sum(np.subtract(self.chi, target)**2) / self.chi_bottom
 
     def r_factor_ft(self, target):
-        return np.sum(np.power(np.subtract(self.ft[self.r_range], target[self.r_range]), 2)) / self.ft_bottom
+        return np.sum(np.subtract(self.ft_cut, target[self.r_range])**2) / self.ft_bottom
+
+    def r_factor_cross(self, target):
+        return np.sum(np.subtract(self.cross, target) ** 2) / self.cross_bottom
 
     def amp_ratio(self, target):
         amp = (self.max[1] / np.abs(target)[self.max[0]]) - 1

@@ -34,8 +34,8 @@ class RMC4:
         pol = np.arange(3) if self.exp.size == 3 else (np.arange(2) + 2)
         self.table = np.array([TABLE_POL(self.exp[i].k_start, self.exp[i].k_end, self.exp[i].r_start,
                                          self.exp[i].r_end, self.sig2, self.energy, self.s02, self.exp[i].k0,
-                                         self.cell.coordinate.copy(), self.cell.element.copy(),
-                                         self.data_base, i, ms_en=self.ms, weight=self.weight) for i in pol])
+                                         self.cell.coordinate.copy(), self.cell.element.copy(), self.data_base,
+                                         pol[i], ms_en=self.ms, weight=self.weight) for i in range(pol.size)])
         if self.r2chi:
             self.r_factor_i = np.array([self.exp[_].r_factor_chi(self.table[_].chi) for _ in range(self.exp.size)])
         else:
@@ -158,8 +158,8 @@ class RMC4:
         pol = np.arange(3) if self.exp.size == 3 else (np.arange(2) + 2)
         self.table = np.array([TABLE_POL(self.exp[i].k_start, self.exp[i].k_end, self.exp[i].r_start,
                                          self.exp[i].r_end, self.sig2, self.energy, self.s02, self.exp[i].k0,
-                                         self.cell.coordinate.copy(), self.cell.element.copy(),
-                                         self.data_base, i, ms_en=self.ms, weight=self.weight) for i in pol])
+                                         self.cell.coordinate.copy(), self.cell.element.copy(), self.data_base,
+                                         pol[i], ms_en=self.ms, weight=self.weight) for i in range(pol.size)])
         print('table set up')
         if self.r2chi:
             self.r_factor_i = np.array([self.exp[_].r_factor_chi(self.table[_].chi) for _ in range(self.exp.size)])

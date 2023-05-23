@@ -40,7 +40,7 @@ def win_function(k_range=0, name='hanning', win_width=10):
     return t_window
 
 
-def k_range(k=np.array([]), xi=np.array([]), start=3.0, end=12.0, padding=True, win_name='hanning', get_k=True):
+def k_range(k=np.array([]), xi=np.array([]), start=3.0, end=12.0, padding=True, win_name='hanning'):
     # choose k range,applying window fuctions
     k_start = np.where(k > start)[0][0] if not start == k[0] else 0
     try:
@@ -84,6 +84,7 @@ def back_k_space(array=np.array([]), r=np.array([]), k_size=401, r_head=0.0, r_t
 
 
 def fft_cut(array=np.array([]), r=np.array([]), r_head=0.0, r_tail=6.0):
-    return np.abs(k_range(r, fft(array, 2048)[:r.size], r_head, r_tail)) / 1024
+    r_cut, ft_cut = k_range(r, fft(array, 2048)[:r.size], r_head, r_tail, False)
+    return np.abs(ft_cut) / 1024
 
 
