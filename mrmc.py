@@ -61,7 +61,7 @@ class Worker(QThread):
         self.rep = np.array([], dtype=RMC4)
         self.file_inp = ''
         self.backup_count = 2000
-        self.fit_space = 'x'
+        self.fit_space = 'k'
 
     def init(self):
         self.rep = np.empty(self.rep_size, dtype=RMC4)
@@ -111,6 +111,7 @@ class Worker(QThread):
             f.write('\n')
         print('initial model saved')
         self.chi_sum = chi_average(self.rep, self.exp.size)
+        self.ft_sum = np.array([])
         if self.fit_space == 'k':
             r_new_pol = np.array([self.exp[_].r_factor_chi(self.chi_sum[_]) for _ in range(self.exp.size)])
         elif self.fit_space == 'r':
@@ -180,6 +181,7 @@ class Worker(QThread):
             self.rep[index].read_result()
 
         self.chi_sum = chi_average(self.rep, self.exp.size)
+        self.ft_sum = np.array([])
         if self.fit_space == 'k':
             r_new_pol = np.array([self.exp[_].r_factor_chi(self.chi_sum[_]) for _ in range(self.exp.size)])
         elif self.fit_space == 'r':
@@ -524,7 +526,13 @@ class Worker(QThread):
     def run(self):
         self.sig_statusbar.emit('Running', 0)
         trials = np.zeros(self.rep_size)
+        stamp0 = timer()
         while True:
+            if self.step_count % 100 == 0:
+                stamp1 = timer()
+                if stamp1 - stamp0 < 1:
+                    sleep(1)
+                stamp0 = stamp1
             if self.step_count % self.backup_count == 0:
                 self.sig_backup.emit(True)
                 self.flag = False
