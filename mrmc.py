@@ -63,6 +63,15 @@ class Worker(QThread):
         self.backup_count = 2000
         self.fit_space = 'k'
 
+        self.chi_sum = np.array([])
+        self.chi_sum_best = np.array([])
+        self.ft_sum = np.array([])
+        self.rep_size = 0
+        self.tau_t = 1e-3
+        self.tau_i = 1e-2
+        self.tau_ratio = self.tau_i / self.tau_t
+
+
     def init(self):
         self.rep = np.empty(self.rep_size, dtype=RMC4)
         self.folder = folder_create(self.simulation_name)
@@ -477,6 +486,23 @@ class Worker(QThread):
             else:
                 self.sig_warning.emit('multi-scattering parameter error')
                 return False
+
+            posi = f.tell()
+            fspace = f.readline().split(':')
+            if fspace[0].find('fitting_space') == -1:
+                f.seek(posi)
+                self.fit_space = 'k'
+            else:
+                temp = fspace[1].strip()
+                if temp == 'K' or temp == 'k':
+                    self.fit_space = 'k'
+                elif temp == 'R' or temp == 'r':
+                    self.fit_space = 'r'
+                elif temp == 'X' or temp == 'x':
+                    self.fit_space = 'x'
+                else:
+                    self.sig_warning.emit('fitting space parameter error')
+                    return False
 
             while True:
                 if not f.readline().find('path') == -1:
