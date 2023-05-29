@@ -28,6 +28,7 @@ r_range[low high]:1 2.7
 delta_E[setting for each satellite atom]:13 -3 13
 rpath[valid only for surface included]:2.7
 multiscattering[True=enable]:False
+fitting_space[r\R or k\K or x\X]:k
 
 [path setting]
 material_folder[back scattering data]: J:\Monte Carlo\cutio2\  
