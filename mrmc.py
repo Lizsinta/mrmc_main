@@ -469,7 +469,8 @@ class Worker(QThread):
                 self.sig_warning.emit('rpath not found')
                 return False
             try:
-                self.local_range = float(rpath[1])
+                rpath = rpath[1].split()
+                self.local_range = np.array([float(rpath[_]) for _ in range(len(rpath))])
             except ValueError:
                 self.sig_warning.emit('rpath format error')
                 return False
@@ -535,7 +536,8 @@ class Worker(QThread):
               (self.step_min[0], self.step_min[1], self.step_max[0], self.step_max[1], self.S0, self.sig2))
         print('k range:%f %f\nr range:%f %f' % (k_range[0], k_range[1], r_range[0], r_range[1]))
         print('E0:', self.E0)
-        print('rpath:%f\nmulti scattering:' % self.local_range, self.multiscattering_en)
+        print('rpath:', self.local_range)
+        print('multi scattering:', self.multiscattering_en)
         print('material folder:%s\nsimulation name:%s' % (self.material_folder, self.simulation_name))
 
         self.r_now_pol = np.zeros(self.exp.size)
@@ -562,6 +564,11 @@ class Worker(QThread):
             if self.step_count % self.backup_count == 0:
                 self.sig_backup.emit(True)
                 self.flag = False
+            '''rep_rf = np.array([replica.r_factor_t for replica in self.rep])
+            deviate = np.where(rep_rf > rep_rf.mean() + rep_rf.var() * 2)[0]
+            if deviate.size > 0:
+                move_array = deviate if self.move_pattern else deviate[randrange(0, deviate.size)]
+            else:'''
             move_array = np.arange(self.rep_size) if self.move_pattern else np.array([randrange(0, self.rep_size)])
             trials -= trials
             for replica in move_array:
@@ -584,6 +591,8 @@ class Worker(QThread):
                     r_new_pol = np.array([self.exp[_].r_factor_cross(self.cross_sum[_]) for _ in range(self.exp.size)])
                 r_new = r_new_pol.sum()
                 if metropolis(self.r_now, r_new, self.tau_t):
+                    '''if deviate.size > 0:
+                        print(rep_rf.mean(), rep_rf.var(), rep_rf[deviate])'''
                     if r_new < self.r_lowest:
                         self.sig_best.emit(self.r_lowest)
                         self.r_lowest = r_new

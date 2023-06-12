@@ -198,9 +198,10 @@ class CrossFactory(SimpleCubicFactory):
 
 
 class ATOMS:
-    def __init__(self, database='', file=' ', pos=np.array([]), element=np.array([]), spherical=True, random=True,
-                 local_range=3.0, surface='', step=np.array([]), step_range=np.array([]), crate_flag=True,
-                 surface_range=np.array([]), trial=50):
+    def __init__(
+            self, database='', file=' ', pos=np.array([]), element=np.array([]), spherical=True, random=True,
+            local_range=np.array([]), surface='', step=np.array([]), step_range=np.array([]), crate_flag=True,
+            surface_range=np.array([]), trial=50):
         self.file = file
         self.surface = surface
         self.coordinate_whole = np.array([])
@@ -217,6 +218,7 @@ class ATOMS:
         self.step_range = np.array([int(step_range[_]/step[_]) for _ in range(step.size)])
         self.limit = surface_range
         self.trial = trial
+        self.surface_symbol = np.array([])
 
         if not self.surface == '' and self.limit.size == 0:
             if self.surface == 'TiO2':
@@ -257,11 +259,13 @@ class ATOMS:
 
         if crate_flag:
             if self.surface == 'TiO2':
+                self.local_range = np.tile(self.local_range, 2) if self.local_range.size == 1 else self.local_range
                 root = self.create_TiO2(random)
                 self.deposition(root)
                 self.c_best = self.coordinate_whole.copy()
                 self.e_best = self.element_whole.copy()
             elif self.surface == 'Al2O3':
+                self.local_range = np.tile(self.local_range, 2) if self.local_range.size == 1 else self.local_range
                 root = self.create_Al2O3(random)
                 self.deposition(root)
                 self.c_best = self.coordinate_whole.copy()
@@ -294,6 +298,7 @@ class ATOMS:
         self.element_whole = ele.copy()
         self.surface_c = self.coordinate_whole.copy()
         self.surface_e = self.element_whole.copy()
+        self.surface_symbol = np.array(['O', 'Ti'])
         adsorb = np.array([], dtype=int)
         for i in range(ele.size):
             if self.surface_c[i][0] == 0 and self.surface_c[i][1] == 0 and self.surface_c[i][2] == 0:
@@ -342,6 +347,7 @@ class ATOMS:
         self.element_whole = ele.copy()
         self.surface_c = self.coordinate_whole.copy()
         self.surface_e = self.element_whole.copy()
+        self.surface_symbol = np.array(['O', 'Al'])
         adsorb = np.array([], dtype=int)
         for i in range(ele.size):
             if self.surface_c[i][0] == 0 and self.surface_c[i][1] == 0 and self.surface_c[i][2] == 0:
@@ -368,10 +374,9 @@ class ATOMS:
         distance = get_distance(self.coordinate_whole - self.coordinate_whole[-self.local_size])
         self.coordinate = self.coordinate_whole[-self.local_size:].copy()
         self.element = self.element_whole[-self.local_size:].copy()
-        surface_symbol = np.unique(self.surface_e)
-        for j in range(surface_symbol.size):
+        for j in range(self.surface_symbol.size):
             for i in range(self.surface_e.size):
-                if self.surface_e[i] == surface_symbol[j] and distance[i] < self.local_range:
+                if self.surface_e[i] == self.surface_symbol[j] and distance[i] < self.local_range[j]:
                     self.coordinate = np.vstack((self.coordinate, self.surface_c[i]))
                     self.element = np.append(self.element, self.surface_e[i])
         self.coordinate -= self.coordinate[0]
@@ -420,7 +425,7 @@ class ATOMS:
                 temp = data.split()
                 coordinate_best = np.append(coordinate_best, np.array([float(temp[0]), float(temp[1]), float(temp[2])]))
                 element_best = np.append(element_best, temp[4][:-1])
-                distance_best = np.append(distance_best, float(temp[5]))
+                #distance_best = np.append(distance_best, float(temp[5]))
             while True:
                 lines = f.readline()
                 if not lines.find('final') == -1:
@@ -432,10 +437,10 @@ class ATOMS:
                 temp = data.split()
                 coordinate = np.append(coordinate, np.array([float(temp[0]), float(temp[1]), float(temp[2])]))
                 element = np.append(element, temp[4][:-1])
-                distance = np.append(distance, float(temp[5]))
+                #distance = np.append(distance, float(temp[5]))
         print('data read')
         if not self.surface == '':
-            self.coordinate_whole = coordinate.reshape(distance.size, 3)
+            self.coordinate_whole = coordinate.reshape(element.size, 3)
             self.cw_temp = self.coordinate_whole.copy()
             self.element_whole = element.copy()
             self.surface_c = self.coordinate_whole[:-self.local_size]
@@ -446,7 +451,7 @@ class ATOMS:
             surface_symbol = np.unique(self.surface_e)
             for j in range(surface_symbol.size):
                 for i in range(self.surface_e.size):
-                    if self.surface_e[i] == surface_symbol[j] and distance[i] < self.local_range:
+                    if self.surface_e[i] == surface_symbol[j] and distance[i] < self.local_range[j]:
                         self.coordinate = np.vstack((self.coordinate, self.surface_c[i]))
                         self.element = np.append(self.element, self.surface_e[i])
             self.coordinate -= self.coordinate[0]
@@ -479,7 +484,7 @@ class ATOMS:
             self.center_e = self.element[0].copy()
             self.satellite_c = self.coordinate[1:].copy()
             self.satellite_e = self.element[1:].copy()
-        self.c_best = coordinate_best.reshape(distance_best.size, 3)
+        self.c_best = coordinate_best.reshape(element_best.size, 3)
         self.e_best = element_best.copy()
         self.c_temp = self.coordinate.copy()
         self.e_temp = self.element.copy()
@@ -493,7 +498,7 @@ class ATOMS:
             self.c_temp[target][randrange(3)] += round(randrange(-self.step_range[1], self.step_range[1] + 1)
                                                        * self.step[1], 3)
             distance = np.delete(get_distance(self.c_temp - self.c_temp[target]), target)
-            if np.min(distance) > self.local_range or np.min(distance) < self.min_distance:
+            if np.min(distance) > self.local_range[1] or np.min(distance) < self.min_distance:
                 trials -= 1
                 continue
             self.distance[target] = sqrt((self.c_temp[target] ** 2).sum())
@@ -537,7 +542,7 @@ class ATOMS:
             self.c_temp[target][1] = round(ri * sin(elevation) * sin(azimuth), 3)
             self.c_temp[target][2] = round(ri * cos(elevation), 3)
             distance = np.delete(get_distance(self.c_temp - self.c_temp[target]), target)
-            if np.min(distance) > self.local_range or np.min(distance) < self.min_distance:
+            if np.min(distance) > self.local_range[1] or np.min(distance) < self.min_distance:
                 trials -= 1
                 continue
             self.distance[target] = sqrt((self.c_temp[target] ** 2).sum())
@@ -570,12 +575,12 @@ class ATOMS:
             surface_symbol = np.unique(self.surface_e)
             for j in range(surface_symbol.size):
                 for i in range(self.surface_e.size):
-                    if self.surface_e[i] == surface_symbol[j] and distance[i] < self.local_range:
+                    if self.surface_e[i] == surface_symbol[j] and distance[i] < self.local_range[j]:
                         self.c_temp = np.vstack((self.c_temp, self.surface_c[i]))
                         self.e_temp = np.append(self.e_temp, self.surface_e[i])
             self.c_temp -= self.c_temp[0]
             distance = get_distance(self.c_temp)[self.local_size:]
-            if distance.size == 0 or np.min(distance) > self.local_range or np.min(distance) < self.min_distance:
+            if distance.size == 0 or np.min(distance) > self.local_range[1] or np.min(distance) < self.min_distance:
                 trials -= 1
                 continue
             self.distance = get_distance(self.c_temp)
