@@ -6,9 +6,10 @@ import os
 import numpy as np
 
 class RMC4:
-    def __init__(self, index, exp, sig2, energy, s02, data_base, path, init_pos=np.array([]), init_element=np.array([]),
-                 spherical=True, random=True, local_range=3.0, surface='', surface_range=np.array([]), r2chi=True,
-                 step=np.array([]), step_range=np.array([]), ini_flag=True, ms=False, weight=3, trial=np.array([])):
+    def __init__(
+            self, index, exp, sig2, energy, s02, data_base, path, init_pos=np.array([]), init_element=np.array([]),
+            spherical=True, random=True, local_range=np.array([]), surface='', surface_range=np.array([]), r2chi=True,
+            step=np.array([]), step_range=np.array([]), ini_flag=True, ms=False, weight=3, trial=np.array([])):
         self.index = index
         self.data_base = data_base
         self.path = path
@@ -31,7 +32,12 @@ class RMC4:
         self.r_factor_t = 0
 
     def table_init(self):
-        pol = np.arange(3) if self.exp.size == 3 else (np.arange(2) + 2)
+        if self.exp.size == 3:
+            pol = np.arange(3)
+        elif self.exp.size == 2:
+            pol = np.arange(2) + 2
+        else:
+            pol = np.array([-1])
         self.table = np.array([TABLE_POL(self.exp[i].k_start, self.exp[i].k_end, self.exp[i].r_start,
                                          self.exp[i].r_end, self.sig2, self.energy, self.s02, self.exp[i].k0,
                                          self.cell.coordinate.copy(), self.cell.element.copy(), self.data_base,
@@ -62,7 +68,7 @@ class RMC4:
             else:
                 if self.debug:
                     print('start move')
-                target, failure = self.cell.moving_spherical(None)
+                target, failure = self.cell.moving(None)
                 if self.debug:
                     print('end move', target, failure, self.cell.distance[target])
                 if failure:
@@ -155,7 +161,12 @@ class RMC4:
 
     def read_result(self):
         self.cell.read(self.index)
-        pol = np.arange(3) if self.exp.size == 3 else (np.arange(2) + 2)
+        if self.exp.size == 3:
+            pol = np.arange(3)
+        elif self.exp.size == 2:
+            pol = np.arange(2) + 2
+        else:
+            pol = np.array([-1])
         self.table = np.array([TABLE_POL(self.exp[i].k_start, self.exp[i].k_end, self.exp[i].r_start,
                                          self.exp[i].r_end, self.sig2, self.energy, self.s02, self.exp[i].k0,
                                          self.cell.coordinate.copy(), self.cell.element.copy(), self.data_base,

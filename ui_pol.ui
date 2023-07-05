@@ -577,7 +577,14 @@
     <addaction name="separator"/>
     <addaction name="action_read_ini"/>
    </widget>
+   <widget class="QMenu" name="menuoption">
+    <property name="title">
+     <string>option</string>
+    </property>
+    <addaction name="action3D_viewer"/>
+   </widget>
    <addaction name="menufile"/>
+   <addaction name="menuoption"/>
   </widget>
   <widget class="QStatusBar" name="statusbar">
    <property name="font">
@@ -654,6 +661,17 @@
   <action name="actioninp">
    <property name="text">
     <string>inp...</string>
+   </property>
+  </action>
+  <action name="action3D_viewer">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="checked">
+    <bool>true</bool>
+   </property>
+   <property name="text">
+    <string>3D viewer</string>
    </property>
   </action>
  </widget>

@@ -273,7 +273,6 @@ def plot_bondanlge(coor, ele):
 
 
 def plot_TiO2(coor, ele, graph):
-    print(ele.size)
     for i in range(ele.size):
         if ele[i] == 'Ti' or ele[i] == 'Al':
             color = 'grey'

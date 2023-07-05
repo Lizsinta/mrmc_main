@@ -5,6 +5,8 @@ import os
 from math import exp, pi, acos, atan, sin, cos
 
 import numpy as np
+from matplotlib import pyplot as plt
+
 from mrmc_package import k_range, deltaE_shift, back_k_space, norm_fft
 
 
@@ -35,7 +37,7 @@ def metropolis(r_0, r, tau=10e-5):
 
 
 class EXP:
-    def __init__(self, file_name, k_start, k_end, r_start, r_end):
+    def __init__(self, file_name, k_start, k_end, r_start, r_end, weight, larch):
         self.name = file_name
         self.k_start = k_start
         self.k_end = k_end
@@ -51,57 +53,84 @@ class EXP:
         self.r_cut = np.array([])
         self.ft_cut = np.array([])
 
-        self.init()
+        self.init(weight, larch)
         self.max = [np.argmax(np.abs(self.chi)), np.max(np.abs(self.chi))]
 
-    def init(self):
-        self.read_exp(self.name)
+    def init(self, kw, larch=True):
+        #dtype = self.name.split('.')[1]
+        if larch:
+            self.read_bk(self.name, kw)
+        else:
+            self.read_exp(self.name)
         self.chi_bottom = np.sum(self.chi ** 2)
         self.ft_bottom = np.sum(self.ft_cut ** 2)
         self.cross_bottom = np.sum(self.cross ** 2)
 
     def read_exp(self, filename='703K_diff_H2-dry.rex'):
         # reading oscillation data
-        with open(filename, 'r') as f_exp:
-            k = np.array([])
-            xi = np.array([])
-            while True:
-                lines = f_exp.readline(11)
-                if not lines or not lines.find('[ED_BEGIN]') == -1:
-                    break
-            while True:
-                data = f_exp.readline()
-                if data.isspace():
-                    break
-                temp = [i for i in data.split()]
-                k = np.append(k, float(temp[0]))
-                xi = np.append(xi, float(temp[1]))
+        if filename.split('.')[1] == 'rex':
+            with open(filename, 'r') as f_exp:
+                k = np.array([])
+                xi = np.array([])
+                while True:
+                    lines = f_exp.readline(11)
+                    if not lines or not lines.find('[ED_BEGIN]') == -1:
+                        break
+                while True:
+                    data = f_exp.readline()
+                    if data.isspace():
+                        break
+                    temp = [i for i in data.split()]
+                    k = np.append(k, float(temp[0]))
+                    xi = np.append(xi, float(temp[1]))
+                self.k0 = k
+                self.process(xi)
+        else:
+            with open(filename, 'r') as f:
+                while True:
+                    line = f.readline()
+                    if not line.find('#  k') == -1:
+                        break
+                k = np.array([])
+                xi = np.array([])
+                while True:
+                    line = f.readline()
+                    if not line or line.isspace():
+                        break
+                    temp = line.split()
+                    k = np.append(k, float(temp[0]))
+                    xi = np.append(xi, float(temp[2]))
             self.k0 = k
             self.process(xi)
 
-    '''def read_bk(self, filename='Tcu.ex3', k_max=20.0):
+    def read_bk(self, filename='Tcu.ex3', k_weight=3):
         # reading oscillation data
-        from larch.xafs import autobk
+        dtype = self.name.split('.')[1]
+        from larch.xafs import autobk, xftf, xftr
         from larch.io import read_ascii
-        f_exp = open(filename, 'r')
-        f_bk = open('temp_bk.dat', 'w')
-        f_bk.write('#   energy        xmu\n')
-        while True:
-            lines = f_exp.readline(11)
-            if not lines or not lines.find('[EX_BEGIN]') == -1:
-                break
-        while True:
-            data = f_exp.readline()
-            if data.isspace():
-                break
-            f_bk.write(data)
-        f_exp.close()
-        f_bk.close()
-        x_data = read_ascii('temp_bk.dat', labels='energy xmu')
-        autobk(x_data.energy, x_data.xmu, group=x_data, rbkg=0.9, kmax=k_max)
-        self.k0 = np.asarray(x_data.k)
-        chi0 = np.multiply(np.asarray(x_data.chi), self.k0 ** 3)
-        self.process(chi0)'''
+        if dtype == 'ex3' or dtype == 'rex':
+            f_exp = open(filename, 'r')
+            f_bk = open('temp_bk.dat', 'w')
+            f_bk.write('#   energy        xmu\n')
+            while True:
+                lines = f_exp.readline(11)
+                if not lines or not lines.find('[EX_BEGIN]') == -1:
+                    break
+            while True:
+                data = f_exp.readline()
+                if data.isspace() or not data.find('[EX_END]') == -1:
+                    break
+                temp = data.split()
+                f_bk.write('%.9s %.9s\n' % (temp[0], temp[1]))
+            f_exp.close()
+            f_bk.close()
+        x_data = read_ascii('temp_bk.dat' if (dtype == 'ex3' or dtype == 'rex') else filename, labels='energy xmu')
+        autobk(x_data.energy, x_data.xmu, group=x_data)
+        xftf(x_data.k, x_data.chi, group=x_data, kmin=3, kmax=9, kweight=3)
+        xftr(x_data.r, x_data.chir, group=x_data, rmin=1, rmax=2.7)
+        #plt.plot(x_data.q, x_data.chiq/2, c='k')
+        self.k0 = x_data.k
+        self.process(x_data.chi * self.k0**k_weight)
 
     def process(self, source):
         self.k, chi = k_range(self.k0, source, self.k_start, self.k_end, False)
@@ -198,9 +227,10 @@ class CrossFactory(SimpleCubicFactory):
 
 
 class ATOMS:
-    def __init__(self, database='', file=' ', pos=np.array([]), element=np.array([]), spherical=True, random=True,
-                 local_range=3.0, surface='', step=np.array([]), step_range=np.array([]), crate_flag=True,
-                 surface_range=np.array([]), trial=50):
+    def __init__(
+            self, database='', file=' ', pos=np.array([]), element=np.array([]), spherical=True, random=True,
+            local_range=np.array([]), surface='', step=np.array([]), step_range=np.array([]), crate_flag=True,
+            surface_range=np.array([]), trial=50):
         self.file = file
         self.surface = surface
         self.coordinate_whole = np.array([])
@@ -228,7 +258,7 @@ class ATOMS:
             for i in range(4):
                 temp = f.readline().split()[-1]
                 if temp == 'Null':
-                    break
+                    continue
                 self.symbol = np.append(self.symbol, temp)
             self.min_distance = float(f.readline().split()[1])
 
@@ -368,10 +398,10 @@ class ATOMS:
         distance = get_distance(self.coordinate_whole - self.coordinate_whole[-self.local_size])
         self.coordinate = self.coordinate_whole[-self.local_size:].copy()
         self.element = self.element_whole[-self.local_size:].copy()
-        surface_symbol = np.unique(self.surface_e)
-        for j in range(surface_symbol.size):
+        self.surface_symbol = np.unique(self.surface_e)
+        for j in range(self.surface_symbol.size):
             for i in range(self.surface_e.size):
-                if self.surface_e[i] == surface_symbol[j] and distance[i] < self.local_range:
+                if self.surface_e[i] == self.surface_symbol[j] and distance[i] < self.local_range[j]:
                     self.coordinate = np.vstack((self.coordinate, self.surface_c[i]))
                     self.element = np.append(self.element, self.surface_e[i])
         self.coordinate -= self.coordinate[0]
@@ -420,7 +450,7 @@ class ATOMS:
                 temp = data.split()
                 coordinate_best = np.append(coordinate_best, np.array([float(temp[0]), float(temp[1]), float(temp[2])]))
                 element_best = np.append(element_best, temp[4][:-1])
-                distance_best = np.append(distance_best, float(temp[5]))
+                #distance_best = np.append(distance_best, float(temp[5]))
             while True:
                 lines = f.readline()
                 if not lines.find('final') == -1:
@@ -432,10 +462,10 @@ class ATOMS:
                 temp = data.split()
                 coordinate = np.append(coordinate, np.array([float(temp[0]), float(temp[1]), float(temp[2])]))
                 element = np.append(element, temp[4][:-1])
-                distance = np.append(distance, float(temp[5]))
+                #distance = np.append(distance, float(temp[5]))
         print('data read')
         if not self.surface == '':
-            self.coordinate_whole = coordinate.reshape(distance.size, 3)
+            self.coordinate_whole = coordinate.reshape(element.size, 3)
             self.cw_temp = self.coordinate_whole.copy()
             self.element_whole = element.copy()
             self.surface_c = self.coordinate_whole[:-self.local_size]
@@ -443,10 +473,10 @@ class ATOMS:
             distance = get_distance(self.coordinate_whole - self.coordinate_whole[-self.local_size])
             self.coordinate = self.coordinate_whole[-self.local_size:].copy()
             self.element = self.element_whole[-self.local_size:].copy()
-            surface_symbol = np.unique(self.surface_e)
-            for j in range(surface_symbol.size):
+            self.surface_symbol = np.unique(self.surface_e)
+            for j in range(self.surface_symbol.size):
                 for i in range(self.surface_e.size):
-                    if self.surface_e[i] == surface_symbol[j] and distance[i] < self.local_range:
+                    if self.surface_e[i] == self.surface_symbol[j] and distance[i] < self.local_range[j]:
                         self.coordinate = np.vstack((self.coordinate, self.surface_c[i]))
                         self.element = np.append(self.element, self.surface_e[i])
             self.coordinate -= self.coordinate[0]
@@ -465,7 +495,7 @@ class ATOMS:
             self.center_e = self.element[0].copy()
             self.satellite_c = self.coordinate[1:].copy()
             self.satellite_e = self.element[1:].copy()
-        self.c_best = coordinate_best.reshape(distance_best.size, 3)
+        self.c_best = coordinate_best.reshape(element_best.size, 3)
         self.e_best = element_best.copy()
         self.c_temp = self.coordinate.copy()
         self.e_temp = self.element.copy()
@@ -479,7 +509,7 @@ class ATOMS:
             self.c_temp[target][randrange(3)] += round(randrange(-self.step_range[1], self.step_range[1] + 1)
                                                        * self.step[1], 3)
             distance = np.delete(get_distance(self.c_temp - self.c_temp[target]), target)
-            if np.min(distance) > self.local_range or np.min(distance) < self.min_distance:
+            if np.min(distance) > self.local_range[0] or np.min(distance) < self.min_distance:
                 trials -= 1
                 continue
             self.distance[target] = sqrt((self.c_temp[target] ** 2).sum())
@@ -523,7 +553,7 @@ class ATOMS:
             self.c_temp[target][1] = round(ri * sin(elevation) * sin(azimuth), 3)
             self.c_temp[target][2] = round(ri * cos(elevation), 3)
             distance = np.delete(get_distance(self.c_temp - self.c_temp[target]), target)
-            if np.min(distance) > self.local_range or np.min(distance) < self.min_distance:
+            if np.min(distance) > self.local_range[0] or np.min(distance) < self.min_distance:
                 trials -= 1
                 continue
             self.distance[target] = sqrt((self.c_temp[target] ** 2).sum())
@@ -545,23 +575,22 @@ class ATOMS:
                 trials -= 1
                 continue
 
-            '''if self.surface == 'TiO2':
+            if self.surface == 'TiO2':
                 if not self.tca_filter(self.cw_temp[-1]):
                     trials -= 1
-                    continue'''
+                    continue
 
             distance = get_distance(self.cw_temp - self.cw_temp[-self.local_size])
             self.c_temp = self.cw_temp[-self.local_size:].copy()
             self.e_temp = self.ew_temp[-self.local_size:].copy()
-            surface_symbol = np.unique(self.surface_e)
-            for j in range(surface_symbol.size):
+            for j in range(self.surface_symbol.size):
                 for i in range(self.surface_e.size):
-                    if self.surface_e[i] == surface_symbol[j] and distance[i] < self.local_range:
+                    if self.surface_e[i] == self.surface_symbol[j] and distance[i] < self.local_range[j]:
                         self.c_temp = np.vstack((self.c_temp, self.surface_c[i]))
                         self.e_temp = np.append(self.e_temp, self.surface_e[i])
             self.c_temp -= self.c_temp[0]
             distance = get_distance(self.c_temp)[self.local_size:]
-            if distance.size == 0 or np.min(distance) > self.local_range or np.min(distance) < self.min_distance:
+            if distance.size == 0 or np.min(distance) > self.local_range[0] or np.min(distance) < self.min_distance:
                 trials -= 1
                 continue
             self.distance = get_distance(self.c_temp)
@@ -664,4 +693,30 @@ class ATOMS:
                                                 ) for _ in range(self.coordinate.shape[0])])) < 3)[0]
             for j in neighbor:
                 distance_sum[i] += sqrt(((ad_pos - self.coordinate[j]) ** 2).sum())'''
+
+if __name__ == '__main__':
+    exp_larch = EXP(r'D:\simulation\Cu207_sum.rex', 3, 9, 1, 2.7, 3, True)
+    exp_rex = EXP(r'D:\simulation\Cu207_sum.rex', 3, 9, 1, 2.7, 3, False)
+    exp_athena = EXP(r'D:\simulation\marked.chik3', 3, 9, 1, 2.7, 3, False)
+    '''with open(r'D:\simulation\marked.chiq_re', 'r') as f:
+        while True:
+            line = f.readline()
+            if not line.find('#  q') == -1:
+                break
+        k = np.array([])
+        chi = np.array([])
+        while True:
+            line = f.readline()
+            if not line or line.isspace():
+                break
+            temp = line.split()
+            k = np.append(k, float(temp[0]))
+            chi = np.append(chi, float(temp[1]))
+    #plt.plot(k, chi, c='b')'''
+    #exp_larch = EXP(r'J:\Monte Carlo\Tcu.rex', 3, 16, 0, 6, 3, True)
+    #exp_rex = EXP(r'J:\Monte Carlo\Tcu.rex', 3, 16, 0, 6, 3, False)
+    plt.plot(exp_larch.k, exp_larch.chi/2, c='k')
+    plt.plot(exp_rex.k, exp_rex.chi, c='r')
+    plt.plot(exp_athena.k, exp_athena.chi, c='b')
+    plt.show()
 

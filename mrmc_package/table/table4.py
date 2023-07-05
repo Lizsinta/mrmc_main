@@ -82,10 +82,10 @@ class TABLE_POL:
         return lrange, step
 
     def single_scattering(self, target):
-        symbol = np.where(self.atom == self.element[target])[0][0]
-        file = self.folder + r'\table2_%d' % symbol
-        table = self.single[symbol - 1]
-        de = self.dE[symbol - 1]
+        symbol = np.where(self.atom[1:] == self.element[target])[0][0]
+        file = self.folder + r'\table2_%d' % (symbol+1)
+        table = self.single[symbol]
+        de = self.dE[symbol]
         if self.distance[target] < self.length[-1]:
             try:
                 index = np.where(self.length == round(self.distance[target], self.decimals))[0][0]
@@ -124,10 +124,10 @@ class TABLE_POL:
             self.single_scattering(i)
 
     def commute_scattering(self, target):
-        symbol = np.where(self.atom == self.element[target])[0][0]
-        file = self.folder + r'\table2s_%d' % symbol
-        table = self.single[symbol - 1]
-        de = self.dE[symbol - 1]
+        symbol = np.where(self.atom[1:] == self.element[target])[0][0]
+        file = self.folder + r'\table2s_%d' % (symbol+1)
+        table = self.single[symbol]
+        de = self.dE[symbol]
         if self.distance[target] < self.length[-1] / 2:
             index = np.where(self.length == round(self.distance[target], self.decimals))[0][0]
             if not type(table[index]) == FEFF:
@@ -161,14 +161,14 @@ class TABLE_POL:
         return True
 
     def multi_scattering(self, step1, step2, debug=False):
-        symbol = np.array([np.where(self.atom == self.element[step1])[0][0],
-                           np.where(self.atom == self.element[step2])[0][0]])
+        symbol = np.array([np.where(self.atom[1:] == self.element[step1])[0][0],
+                           np.where(self.atom[1:] == self.element[step2])[0][0]])
         symbol = np.flipud(symbol) if symbol[1] < symbol[0] else symbol
-        file2nd = self.folder + r'\table3_%d_%d' % (symbol[0], symbol[1])
+        file2nd = self.folder + r'\table3_%d_%d' % (symbol[0] + 1, symbol[1] + 1)
         table2nd = self.double[int(symbol.sum())]
-        file3rd = self.folder + r'\table4_%d_%d' % (symbol[0], symbol[1])
+        file3rd = self.folder + r'\table4_%d_%d' % (symbol[0] + 1, symbol[1] + 1)
         table3rd = self.triple[int(symbol.sum()) - 2]
-        de = self.dE[np.where(self.atom == self.element[step1])[0][0] - 1]
+        de = self.dE[np.where(self.atom[1:] == self.element[step1])[0][0]]
         d_vector = sqrt(((self.coordinate[step2] - self.coordinate[step1]) ** 2).sum())
         if round(self.distance[step1], self.decimals) > self.length[-1] or \
                 round(d_vector, self.decimals) > self.length[-1]:

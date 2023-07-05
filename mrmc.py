@@ -70,6 +70,7 @@ class Worker(QThread):
         self.tau_t = 1e-3
         self.tau_i = 1e-2
         self.tau_ratio = self.tau_i / self.tau_t
+        self.flag_viwer = True
 
 
     def init(self):
@@ -132,7 +133,8 @@ class Worker(QThread):
             r_new_pol = np.array([self.exp[_].r_factor_cross(
                 self.chi_sum[_] * np.transpose([self.ft_sum[_]])) for _ in range(self.exp.size)])
         self.sig_plotinfo.emit(self.chi_sum if not self.fit_space == 'r' else self.ft_sum, r_new_pol, self.ft_sum)
-        self.sig_init3d.emit(self.surface, self.rep_size)
+        if self.flag_viwer:
+            self.sig_init3d.emit(self.surface, self.rep_size)
         self.r_now = r_new_pol.sum()
         self.r_lowest = self.r_now
         self.chi_sum_best = self.chi_sum.copy()
@@ -212,7 +214,8 @@ class Worker(QThread):
         self.tau_ratio = self.tau_i / self.tau_t
 
         self.sig_plotinfo.emit(self.chi_sum if not self.fit_space == 'r' else self.ft_sum, r_new_pol, self.ft_sum)
-        self.sig_init3d.emit(self.surface, self.rep_size)
+        if self.flag_viwer:
+            self.sig_init3d.emit(self.surface, self.rep_size)
         print('information displayed')
         return True
 
@@ -229,7 +232,7 @@ class Worker(QThread):
                     return False
                 temp = temp.split(temp.split(':')[0] + ':')[1].strip()
                 if not temp or len(temp.split()) == 0:
-                    break
+                    continue
                 exp_path = np.append(exp_path, temp.split('\n')[0])
             if exp_path.size == 0:
                 self.sig_warning.emit('no experimental data')
@@ -266,14 +269,32 @@ class Worker(QThread):
                 return False
 
             self.init_pos = np.array([])
+            self.init_eledex = np.array([], dtype=int)
             self.init_element = np.array([])
             temp = f.readline().split()
-            self.init_element = np.append(self.init_element, temp[0])
             try:
-                self.init_pos = np.append(self.init_pos, np.array([float(temp[1]), float(temp[2]), float(temp[3])]))
-            except ValueError or IndexError:
-                self.sig_warning.emit('center atom format error')
-                return False
+                float(temp[0])
+            except ValueError:
+                atype = False
+            else:
+                atype = True
+            if atype:
+                try:
+                    self.init_pos = np.append(self.init_pos, np.array([float(temp[0]), float(temp[1]), float(temp[2])]))
+                    self.init_eledex = np.append(self.init_eledex, int(temp[3]))
+                    self.init_element = np.append(self.init_element,
+                                                  temp[4][:-1] if temp[4][-1].isnumeric() else temp[4])
+                except ValueError or IndexError:
+                    self.sig_warning.emit('center atom format error')
+                    return False
+            else:
+                try:
+                    self.init_element = np.append(self.init_element, temp[0])
+                    self.init_eledex = np.append(self.init_eledex, 0)
+                    self.init_pos = np.append(self.init_pos, np.array([float(temp[1]), float(temp[2]), float(temp[3])]))
+                except ValueError or IndexError:
+                    self.sig_warning.emit('center atom format error')
+                    return False
 
             if f.readline().find('satellite_atoms') == -1:
                 self.sig_warning.emit('satellite_atoms line missing')
@@ -288,12 +309,33 @@ class Worker(QThread):
                 if not lines.find('END') == -1:
                     break
                 sat = lines.split()
-                self.init_element = np.append(self.init_element, sat[0])
                 try:
-                    self.init_pos = np.append(self.init_pos, np.array([float(sat[1]), float(sat[2]), float(sat[3])]))
-                except ValueError or IndexError:
-                    self.sig_warning.emit('satellite atoms format error')
-                    return False
+                    float(sat[0])
+                except ValueError:
+                    atype = False
+                else:
+                    atype = True
+                if atype:
+                    try:
+                        self.init_pos = np.append(self.init_pos,
+                                                  np.array([float(sat[0]), float(sat[1]), float(sat[2])]))
+                        self.init_eledex = np.append(self.init_eledex, int(sat[3]))
+                        self.init_element = np.append(self.init_element,
+                                                      sat[4][:-1] if sat[4][-1].isnumeric() else sat[4])
+                    except ValueError or IndexError:
+                        self.sig_warning.emit('satellite atoms format error')
+                        return False
+                else:
+                    try:
+                        self.init_element = np.append(self.init_element, sat[0])
+                        self.init_pos = np.append(self.init_pos,
+                                                  np.array([float(sat[1]), float(sat[2]), float(sat[3])]))
+                    except ValueError or IndexError:
+                        self.sig_warning.emit('satellite atoms format error')
+                        return False
+            if self.init_eledex.size < self.init_element.size:
+                self.init_eledex = np.arange(self.init_element.size)
+            self.species = self.init_element[np.unique(self.init_eledex, return_index=True)[1]]
             self.init_pos = np.reshape(self.init_pos, (self.init_element.size, 3))
 
             spherical = f.readline().split(':')
@@ -443,7 +485,8 @@ class Worker(QThread):
                 self.sig_warning.emit('r or k range value error')
                 return False
 
-            self.exp = np.array([EXP(_, k_range[0], k_range[1], r_range[0], r_range[1]) for _ in exp_path])
+            self.exp = np.array([EXP(_, k_range[0], k_range[1], r_range[0], r_range[1],
+                                     self.weight, False) for _ in exp_path])
             for pol in self.exp:
                 if pol.chi.size < (20 * (k_range[1] - k_range[0])) - 1:
                     self.sig_warning.emit('k range exceeds experimental data')
@@ -454,12 +497,13 @@ class Worker(QThread):
                 self.sig_warning.emit('E0 not found')
                 return False
             temp = e0[1].split()
-            amount = self.init_element.size - 1
+            amount = self.species.size - 1
             if not self.surface == '':
                 amount += 2
             if not len(temp) == amount:
-                self.sig_warning.emit('Please set E0 for %d atoms' % amount)
-                return False
+                self.sig_statusbar.emit('Waring: number of E0 [%d] is less than specise [%d]' % (len(temp), amount), 0)
+                while not len(temp) == amount:
+                    temp.append(temp[-1])
             self.E0 = np.array([float(_) for _ in temp])
 
             rpath = f.readline().split(':')
@@ -467,7 +511,8 @@ class Worker(QThread):
                 self.sig_warning.emit('rpath not found')
                 return False
             try:
-                self.local_range = float(rpath[1])
+                rpath = rpath[1].split()
+                self.local_range = np.array([float(rpath[_]) for _ in range(len(rpath))])
             except ValueError:
                 self.sig_warning.emit('rpath format error')
                 return False
@@ -527,13 +572,15 @@ class Worker(QThread):
         print('weight:%d\nreplica size:%d\nsurface:%s\nmoving atoms:' % (self.weight, self.rep_size, self.surface))
         print(self.init_pos)
         print(self.init_element)
+        print('unique element: ', self.species)
         print('spherical coordinate:', self.spherical, '\nrandom deposition:', self.random_init,
               '\nmove pattern:', self.move_pattern)
         print('step_min:%.3f %.3f\nstep_max:%.3f %.3f\nS0:%f\nsig2:%f' %
               (self.step_min[0], self.step_min[1], self.step_max[0], self.step_max[1], self.S0, self.sig2))
         print('k range:%f %f\nr range:%f %f' % (k_range[0], k_range[1], r_range[0], r_range[1]))
         print('E0:', self.E0)
-        print('rpath:%f\nmulti scattering:' % self.local_range, self.multiscattering_en)
+        print('rpath:', self.local_range)
+        print('multi scattering:', self.multiscattering_en)
         print('material folder:%s\nsimulation name:%s' % (self.material_folder, self.simulation_name))
 
         self.r_now_pol = np.zeros(self.exp.size)
@@ -554,6 +601,12 @@ class Worker(QThread):
             if self.step_count % self.backup_count == 0:
                 self.sig_backup.emit(True)
                 self.flag = False
+            '''rep_rf = np.array([replica.r_factor_t for replica in self.rep])
+            deviate = np.where(rep_rf > np.average(rep_rf)*2)[0]
+            print(np.average(rep_rf), rep_rf[deviate])
+            if deviate.size > 0:
+                move_array = deviate if self.move_pattern else deviate[randrange(0, deviate.size)]
+            else:'''
             move_array = np.arange(self.rep_size) if self.move_pattern else np.array([randrange(0, self.rep_size)])
             trials -= trials
             for replica in move_array:
@@ -587,21 +640,23 @@ class Worker(QThread):
                             else:
                                 self.rep[replica].cell.c_best = self.rep[replica].cell.c_temp.copy()
 
-                    for i in np.where(trials > 0)[0]:
-                        if not self.surface == '':
-                            base = self.rep[i].cell.surface_e.size
-                            if self.rep[i].moved_atom == 0:
-                                for j in range(self.rep[i].cell.local_size):
-                                    self.sig_plot3d.emit(i, j, self.rep[i].cell.cw_temp[base + j]
-                                                         - self.rep[i].cell.coordinate_whole[base + j])
+                    if self.flag_viwer:
+                        for i in np.where(trials > 0)[0]:
+                            if not self.surface == '':
+                                base = self.rep[i].cell.surface_e.size
+                                if self.rep[i].moved_atom == 0:
+                                    for j in range(self.rep[i].cell.local_size):
+                                        self.sig_plot3d.emit(i, j, self.rep[i].cell.cw_temp[base + j]
+                                                             - self.rep[i].cell.coordinate_whole[base + j])
+                                else:
+                                    self.sig_plot3d.emit(
+                                        i, self.rep[i].moved_atom,
+                                        self.rep[i].cell.cw_temp[base + self.rep[i].moved_atom] -
+                                        self.rep[i].cell.coordinate_whole[base + self.rep[i].moved_atom])
                             else:
                                 self.sig_plot3d.emit(i, self.rep[i].moved_atom,
-                                                     self.rep[i].cell.cw_temp[base + self.rep[i].moved_atom] -
-                                                     self.rep[i].cell.coordinate_whole[base + self.rep[i].moved_atom])
-                        else:
-                            self.sig_plot3d.emit(i, self.rep[i].moved_atom,
-                                                 self.rep[i].cell.c_temp[self.rep[i].moved_atom] -
-                                                 self.rep[i].cell.coordinate[self.rep[i].moved_atom])
+                                                     self.rep[i].cell.c_temp[self.rep[i].moved_atom] -
+                                                     self.rep[i].cell.coordinate[self.rep[i].moved_atom])
                     for replica in move_array:
                         if not trials[replica] == 0:
                             self.rep[replica].accept()
@@ -621,7 +676,6 @@ class Worker(QThread):
 
 class MainWindow(QMainWindow, Ui_MainWindow_Pol):
     def __init__(self):
-        # from matplotlib.backends.backend_qt5 import NavigationToolbar2QT as NavigationToolbar
         super(MainWindow, self).__init__()
         print('*******************************************************************************************************')
         print('                                       Micro Reverse Monte Carlo                                       ')
@@ -647,12 +701,8 @@ class MainWindow(QMainWindow, Ui_MainWindow_Pol):
         self.plot = {}
         self.plotex = {}
 
-        self.model = gl.GLViewWidget()
-        self.model.setObjectName('model')
         self.scatter = np.array([])
         self.bond = np.array([])
-        self.model.setContextMenuPolicy(Qt.CustomContextMenu)
-        self.model.customContextMenuRequested.connect(self.save_3d_menu)
 
         self.tau_t_value_box.valueChanged.connect(self.tau_t_change)
         self.tau_t_degree_box.valueChanged.connect(self.tau_t_change)
@@ -671,6 +721,7 @@ class MainWindow(QMainWindow, Ui_MainWindow_Pol):
         self.startButton.setEnabled(False)
         self.action_new.setEnabled(False)
         self.continueButton.setEnabled(False)
+        self.action3D_viewer.triggered.connect(self.switch_viwer)
 
         self.thread.sig_plotinfo.connect(self.pol_info)
         self.thread.sig_init3d.connect(self.plot_init)
@@ -682,6 +733,7 @@ class MainWindow(QMainWindow, Ui_MainWindow_Pol):
         self.thread.sig_statistic.connect(self.statistic_display)
         self.thread.sig_tau.connect(self.tau_init)
         self.thread.sig_backup.connect(self.force_log)
+        self.thread.sig_statusbar.connect(self.show_massage)
 
     def read_inp(self):
         file_name = QFileDialog.getOpenFileName(self, 'select inp file...', os.getcwd(), '*.inp')
@@ -711,7 +763,6 @@ class MainWindow(QMainWindow, Ui_MainWindow_Pol):
     def window_init(self):
         self.startButton.setEnabled(True)
         self.action_new.setEnabled(True)
-
         if not len(self.plot) == 0:
             for i in range(len(self.plot)):
                 self.plot[i].removeItem(self.line_exp[i])
@@ -730,7 +781,7 @@ class MainWindow(QMainWindow, Ui_MainWindow_Pol):
         elif self.thread.exp.size == 2:
             title = ['Polarization S', '', 'Polarization P']
         else:
-            title = ['Spectrum']
+            title = ['Spectrum', '', '']
         for i in range(3):
             self.polxyz[i].setTitle(title[i], color='#000000', size='18pt')
             if self.thread.fit_space == 'x':
@@ -792,19 +843,17 @@ class MainWindow(QMainWindow, Ui_MainWindow_Pol):
             if self.thread.fit_space == 'x':
                 self.plotex[i].addItem(self.line_exp[i + len(self.plot)])
 
-        self.r_aver = np.zeros(self.thread.init_element.size - 1)
-        self.c2 = np.zeros(self.thread.init_element.size - 1)
-        self.c3 = np.zeros(self.thread.init_element.size - 1)
-        if self.r_aver.size == 0:
-            self.CuO_Box.setTitle('Null')
-            self.CuS_Box.setTitle('Null')
+        self.r_aver = np.zeros(self.thread.species.size - 1)
+        self.c2 = np.zeros(self.thread.species.size - 1)
+        self.c3 = np.zeros(self.thread.species.size - 1)
         if self.r_aver.size > 0:
-            self.CuO_Box.setTitle('%s-%s bond' % (self.thread.init_element[0], self.thread.init_element[1]))
+            self.CuO_Box.setTitle('%s-%s bond' % (self.thread.species[0], self.thread.species[1]))
+            if self.r_aver.size > 1:
+                self.CuS_Box.setTitle('%s-%s bond' % (self.thread.species[0], self.thread.species[2]))
+            else:
+                self.CuS_Box.setTitle('Null')
         else:
             self.CuO_Box.setTitle('Null')
-        if self.r_aver.size > 1:
-            self.CuS_Box.setTitle('%s-%s bond' % (self.thread.init_element[0], self.thread.init_element[2]))
-        else:
             self.CuS_Box.setTitle('Null')
         self.tau_t_value_box.setValue(float(('%.1e' % self.thread.tau_t).split('e-')[0]))
         self.tau_t_degree_box.setValue(int(('%.1e' % self.thread.tau_t).split('e-')[1]))
@@ -890,8 +939,9 @@ class MainWindow(QMainWindow, Ui_MainWindow_Pol):
             print('information wrote')
             fig = self.graphWidget.grab()
             fig.save(self.thread.folder + r'\observe.png', 'PNG')
-            image = self.model.renderToArray((1000, 1000))
-            pg.makeQImage(image).save(self.thread.folder + r'\model.png')
+            if self.thread.flag_viwer:
+                image = np.transpose(self.model.renderToArray((1000, 1000)))
+                pg.makeQImage(image).save(self.thread.folder + r'\model.png')
             self.statusbar.showMessage('Done!', 3000)
             self.continueButton.setEnabled(True)
 
@@ -935,9 +985,9 @@ class MainWindow(QMainWindow, Ui_MainWindow_Pol):
                                                                                      self.thread.r_lowest_pol[0],
                                                                                      self.thread.r_lowest_pol[1],
                                                                                      self.thread.r_lowest_pol[2]))
-            for i in range(self.thread.init_element.size - 1):
-                info.write('%s-%s bond(r,c2,c3): %f    %f    %f\n' % (self.thread.init_element[0],
-                                                                      self.thread.init_element[i + 1],
+            for i in range(self.r_aver.size - 1):
+                info.write('%s-%s bond(r,c2,c3): %f    %f    %f\n' % (self.thread.species[0],
+                                                                      self.thread.species[i + 1],
                                                                       self.r_aver[i], self.c2[i], self.c3[i]))
 
     def write_model(self):
@@ -1076,16 +1126,18 @@ class MainWindow(QMainWindow, Ui_MainWindow_Pol):
                     self.line_chi[i].setData(x=self.thread.exp[i].r_cut, y=chik[i])
 
         for i in range(self.r_aver.size):
-            dist = np.array([replica.cell.distance[i + 1] for replica in self.thread.rep])
+            dist = np.array([replica.cell.distance[np.where(self.thread.init_eledex == (i + 1))[0]] for replica in
+                             self.thread.rep]).ravel()
             self.r_aver[i] = dist.mean()
             self.c2[i] = dist.var()
             self.c3[i] = ((dist - self.r_aver[i]) ** 3).mean()
         self.statistic_display()
 
         self.current_lcd_p1.display(factor[0])
-        self.current_lcd_p2.display(factor[1])
-        if self.thread.exp.size > 2:
-            self.current_lcd_p3.display(factor[2])
+        if self.thread.exp.size > 1:
+            self.current_lcd_p2.display(factor[1])
+            if self.thread.exp.size > 2:
+                self.current_lcd_p3.display(factor[2])
 
     def tau_t_change(self):
         signal = self.sender()
@@ -1141,7 +1193,12 @@ class MainWindow(QMainWindow, Ui_MainWindow_Pol):
                 replica.cell.adsorption = True
 
     def plot_init(self):
-        color = ['blue', 'yellow', 'red', 'green']
+        color = ['blue', 'yellow', 'red', 'green', 'orange', 'purple', 'cyan']
+        self.model = gl.GLViewWidget()
+        self.model.setContextMenuPolicy(Qt.CustomContextMenu)
+        self.model.customContextMenuRequested.connect(self.save_3d_menu)
+        self.scatter = np.array([])
+        self.bond = np.array([])
         if not self.thread.surface == '':
             init_3dplot(self.model, grid=False, view=40, title='model')  # set initial view distance by "view"
             if self.thread.surface == 'TiO2':
@@ -1165,12 +1222,13 @@ class MainWindow(QMainWindow, Ui_MainWindow_Pol):
             self.model.addItem(line([0, 0], [-5, 5], [0, 0], c='green', width=3))
             self.model.addItem(line([0, 0], [0, 0], [-5, 5], c='blue', width=3))
 
+
             for replica in self.thread.rep:
                 for i in range(1, replica.cell.local_size):
                     self.scatter = np.append(self.scatter, scatter(replica.cell.coordinate[i][0],
                                                                    replica.cell.coordinate[i][1],
                                                                    replica.cell.coordinate[i][2],
-                                                                   c=color[i], scale=0.3))
+                                                                   c=color[self.thread.init_eledex[i]], scale=0.3))
                     self.model.addItem(self.scatter[-1])
             self.scatter = self.scatter.reshape((self.thread.rep_size, self.thread.init_element.size - 1))
         self.g3dLayout.addWidget(self.model)
@@ -1182,10 +1240,22 @@ class MainWindow(QMainWindow, Ui_MainWindow_Pol):
         self.scatter[where][target-1].translate(position[0], position[1], position[2])
 
     def plot_3D_event(self, where, target, position):
-        if not self.thread.surface == '':
-            self.plot_3D_substrate(where, target, position)
+        if self.thread.flag_viwer:
+            if not self.thread.surface == '':
+                self.plot_3D_substrate(where, target, position)
+            else:
+                self.plot_3D_center(where, target, position)
+
+    def switch_viwer(self):
+        if self.action3D_viewer.isChecked() and not self.thread.flag_viwer:
+            self.thread.flag_viwer = True
+            self.plot_init()
+        elif not self.action3D_viewer.isChecked() and self.thread.flag_viwer:
+            self.thread.flag_viwer = False
+            self.g3dLayout.removeWidget(self.model)
+            self.model.deleteLater()
         else:
-            self.plot_3D_center(where, target, position)
+            pass
 
     def read_init_pos(self):
         file_name = QFileDialog.getOpenFileName(self, 'select ini file...', self.thread.simulation_name)
@@ -1217,7 +1287,7 @@ class MainWindow(QMainWindow, Ui_MainWindow_Pol):
     def save_3d_action(self, target):
         address = self.thread.folder if not self.thread.folder == '' else os.getcwd()
         name = '/model.jpg'
-        size = (1920, 1080) if self.thread.material == 'CuAlO' else (1080, 1080)
+        size = (1080, 1080)
         name = QFileDialog.getSaveFileName(self, 'select path...', address + name, 'jpg(*.jpg)')
         if name[0] == '':
             return
@@ -1237,6 +1307,9 @@ class MainWindow(QMainWindow, Ui_MainWindow_Pol):
                 self.c2_S_lcd.display(self.c2[1])
                 self.c3_S_lcd.display(self.c3[1])
 
+
+
+
     def new_event(self):
         self.thread.init()
         self.actioninp.setEnabled(False)
@@ -1252,6 +1325,9 @@ class MainWindow(QMainWindow, Ui_MainWindow_Pol):
 
     def warning_window(self, massage):
         QMessageBox.critical(self, 'Error', massage)
+
+    def show_massage(self, massage, ms):
+        self.statusbar.showMessage(massage, ms)
 
     def close_signal(self, a):
         self.close()
