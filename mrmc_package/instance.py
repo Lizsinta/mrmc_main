@@ -440,6 +440,7 @@ class ATOMS:
                 #distance = np.append(distance, float(temp[5]))
         print('data read')
         if not self.surface == '':
+            self.local_range = np.tile(self.local_range, 2) if self.local_range.size == 1 else self.local_range
             self.coordinate_whole = coordinate.reshape(element.size, 3)
             self.cw_temp = self.coordinate_whole.copy()
             self.element_whole = element.copy()
@@ -448,10 +449,10 @@ class ATOMS:
             distance = get_distance(self.coordinate_whole - self.coordinate_whole[-self.local_size])
             self.coordinate = self.coordinate_whole[-self.local_size:].copy()
             self.element = self.element_whole[-self.local_size:].copy()
-            surface_symbol = np.unique(self.surface_e)
-            for j in range(surface_symbol.size):
+            self.surface_symbol = np.unique(self.surface_e)
+            for j in range(self.surface_symbol.size):
                 for i in range(self.surface_e.size):
-                    if self.surface_e[i] == surface_symbol[j] and distance[i] < self.local_range[j]:
+                    if self.surface_e[i] == self.surface_symbol[j] and distance[i] < self.local_range[j]:
                         self.coordinate = np.vstack((self.coordinate, self.surface_c[i]))
                         self.element = np.append(self.element, self.surface_e[i])
             self.coordinate -= self.coordinate[0]
