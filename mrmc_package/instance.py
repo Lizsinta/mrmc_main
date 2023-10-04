@@ -468,6 +468,7 @@ class ATOMS:
                 distance = np.append(distance, float(temp[5]))
         print('data read')
         if not self.surface == '':
+            self.local_range = np.tile(self.local_range, 2) if self.local_range.size == 1 else self.local_range
             self.coordinate_whole = coordinate.reshape(element.size, 3)
             self.cw_temp = self.coordinate_whole.copy()
             self.element_whole = element.copy()
