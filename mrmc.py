@@ -6,7 +6,7 @@ from mrmc_package import EXP, RMC4, metropolis, Ui_MainWindow_Pol, folder_create
 import os
 from time import perf_counter as timer
 from time import sleep
-from random import randrange
+from random import randrange, choice
 
 import numpy as np
 from math import sqrt
@@ -70,6 +70,7 @@ class Worker(QThread):
         self.tau_t = 1e-3
         self.tau_i = 1e-2
         self.tau_ratio = self.tau_i / self.tau_t
+        self.surface_path = ''
 
 
     def init(self):
@@ -84,9 +85,10 @@ class Worker(QThread):
             self.rep[index] = RMC4(index, self.exp, self.sig2, self.E0, self.S0, data_base=self.material_folder,
                                    path=self.folder, init_pos=self.init_pos.copy(), init_element=self.init_element,
                                    spherical=self.spherical, random=self.random_init, local_range=self.local_range,
-                                   surface=self.surface, surface_range=self.surface_range, r2chi=self.fit_space,
-                                   step=self.step_min, step_range=self.step_max, ini_flag=True,
-                                   ms=self.multiscattering_en, weight=self.weight, trial=self.trial)
+                                   surface=self.surface, surface_path=self.surface_path,
+                                   surface_range=self.surface_range, r2chi=self.fit_space, step=self.step_min,
+                                   step_range=self.step_max, ini_flag=True, ms=self.multiscattering_en,
+                                   weight=self.weight, trial=self.trial)
             self.rep[index].table_init()
         print('replica created')
         with open(self.folder + r'/model.dat', 'w') as f:
@@ -122,19 +124,19 @@ class Worker(QThread):
         self.chi_sum = chi_average(self.rep, self.exp.size)
         self.ft_sum = np.array([])
         if self.fit_space == 'k':
-            r_new_pol = np.array([self.exp[_].r_factor_chi(self.chi_sum[_]) for _ in range(self.exp.size)])
+            self.r_now_pol = np.array([self.exp[_].r_factor_chi(self.chi_sum[_]) for _ in range(self.exp.size)])
         elif self.fit_space == 'r':
             self.ft_sum = np.array([fft_cut(self.chi_sum[_], self.exp[_].r, self.exp[_].r_start,
                                             self.exp[_].r_end) for _ in range(self.exp.size)])
-            r_new_pol = np.array([self.exp[_].r_factor_ft(self.ft_sum[_]) for _ in range(self.exp.size)])
+            self.r_now_pol = np.array([self.exp[_].r_factor_ft(self.ft_sum[_]) for _ in range(self.exp.size)])
         else:
             self.ft_sum = np.array([fft_cut(self.chi_sum[_], self.exp[_].r, self.exp[_].r_start,
                                             self.exp[_].r_end) for _ in range(self.exp.size)])
-            r_new_pol = np.array([self.exp[_].r_factor_cross(
+            self.r_now_pol = np.array([self.exp[_].r_factor_cross(
                 self.chi_sum[_] * np.transpose([self.ft_sum[_]])) for _ in range(self.exp.size)])
-        self.sig_plotinfo.emit(self.chi_sum if not self.fit_space == 'r' else self.ft_sum, r_new_pol, self.ft_sum)
+        self.sig_plotinfo.emit(self.chi_sum if not self.fit_space == 'r' else self.ft_sum, self.r_now_pol, self.ft_sum)
         self.sig_init3d.emit(self.surface, self.rep_size)
-        self.r_now = r_new_pol.sum()
+        self.r_now = self.r_now_pol.sum()
         self.r_lowest = self.r_now
         self.chi_sum_best = self.chi_sum.copy()
         self.step_count = 1
@@ -192,17 +194,17 @@ class Worker(QThread):
         self.chi_sum = chi_average(self.rep, self.exp.size)
         self.ft_sum = np.array([])
         if self.fit_space == 'k':
-            r_new_pol = np.array([self.exp[_].r_factor_chi(self.chi_sum[_]) for _ in range(self.exp.size)])
+            self.r_now_pol = np.array([self.exp[_].r_factor_chi(self.chi_sum[_]) for _ in range(self.exp.size)])
         elif self.fit_space == 'r':
             self.ft_sum = np.array([fft_cut(self.chi_sum[_], self.exp[_].r, self.exp[_].r_start,
                                             self.exp[_].r_end) for _ in range(self.exp.size)])
-            r_new_pol = np.array([self.exp[_].r_factor_ft(self.ft_sum[_]) for _ in range(self.exp.size)])
+            self.r_now_pol = np.array([self.exp[_].r_factor_ft(self.ft_sum[_]) for _ in range(self.exp.size)])
         else:
             self.ft_sum = np.array([fft_cut(self.chi_sum[_], self.exp[_].r, self.exp[_].r_start,
                                             self.exp[_].r_end) for _ in range(self.exp.size)])
             self.cross_sum = np.array([self.chi_sum[_] * np.transpose([self.ft_sum[_]]) for _ in range(self.exp.size)])
-            r_new_pol = np.array([self.exp[_].r_factor_cross(self.cross_sum[_]) for _ in range(self.exp.size)])
-        self.r_now = r_new_pol.sum()
+            self.r_now_pol = np.array([self.exp[_].r_factor_cross(self.cross_sum[_]) for _ in range(self.exp.size)])
+        self.r_now = self.r_now_pol.sum()
         self.chi_sum_best = self.chi_sum.copy()
 
         self.sig_step.emit(self.step_count)
@@ -213,7 +215,7 @@ class Worker(QThread):
         self.sig_tau.emit(self.tau_t, self.tau_i)
         self.tau_ratio = self.tau_i / self.tau_t
 
-        self.sig_plotinfo.emit(self.chi_sum if not self.fit_space == 'r' else self.ft_sum, r_new_pol, self.ft_sum)
+        self.sig_plotinfo.emit(self.chi_sum if not self.fit_space == 'r' else self.ft_sum, self.r_now_pol, self.ft_sum)
         self.sig_init3d.emit(self.surface, self.rep_size)
         print('information displayed')
         return True
@@ -236,12 +238,14 @@ class Worker(QThread):
             if exp_path.size == 0:
                 self.sig_warning.emit('no experimental data')
                 return False
+            print(exp_path)
 
             weight = f.readline().split(':')
             if weight[0].find('weight') == -1:
                 self.sig_warning.emit('weight formal error')
                 return False
             self.weight = int(weight[1])
+            print('weight:%d' % self.weight)
 
             while True:
                 if not f.readline().find('model') == -1:
@@ -252,16 +256,30 @@ class Worker(QThread):
                 self.sig_warning.emit('rep_size formal error')
                 return False
             self.rep_size = int(rep_size[1])
+            print('replica size:%d' % self.rep_size)
 
-            temp = f.readline().split(':')
-            if temp[0].find('surface') == -1:
+            temp = f.readline()
+            if temp.find('surface') == -1:
                 self.sig_warning.emit('surface formal error')
                 return False
-            surface = temp[1].strip()
-            if len(surface) == 0 or (not surface == 'TiO2' and not surface == 'Al2O3'):
-                self.surface = ''
+            surface_para = temp.strip().split('surface:')[1]
+            if len(surface_para) > 1:
+                surface_para = surface_para.split()
+                surface = surface_para[0]
+                print(surface_para)
+                if len(surface_para) > 1:
+                    if os.path.exists(surface_para[1]):
+                        self.surface_path = surface_para[1]
+                    else:
+                        self.sig_warning.emit(r"surface file doesn't exist")
+                if not surface == 'TiO2' and not surface == 'Al2O3':
+                    self.surface = ''
+                else:
+                    self.surface = surface
             else:
-                self.surface = surface
+                self.surface = ''
+
+            print('surface:%s(%s)' % (self.surface, self.surface_path if len(self.surface_path) > 0 else 'default'))
 
             if f.readline().find('center_atom') == -1:
                 self.sig_warning.emit('center_atom line missing')
@@ -297,6 +315,9 @@ class Worker(QThread):
                     self.sig_warning.emit('satellite atoms format error')
                     return False
             self.init_pos = np.reshape(self.init_pos, (self.init_element.size, 3))
+            print('moving atoms:')
+            print(self.init_pos)
+            print(self.init_element)
 
             spherical = f.readline().split(':')
             if spherical[0].find('coordinate_system') == -1:
@@ -310,6 +331,7 @@ class Worker(QThread):
             else:
                 self.sig_warning.emit('coordinate system parameter error')
                 return False
+            print('spherical coordinate:', self.spherical)
 
             random = f.readline().split(':')
             if random[0].find('random_deposition') == -1:
@@ -323,6 +345,7 @@ class Worker(QThread):
             else:
                 self.sig_warning.emit('random deposition parameter error')
                 return False
+            print('random deposition:', self.random_init)
 
             pattern = f.readline().split(':')
             if pattern[0].find('move_pattern') == -1:
@@ -337,12 +360,13 @@ class Worker(QThread):
             else:
                 self.sig_warning.emit('move pattern parameter error')
                 return False
+            print('move pattern:', self.move_pattern)
 
-            step_min = f.readline().split(':')
-            if step_min[0].find('trial_count') == -1:
+            try_count = f.readline().split(':')
+            if try_count[0].find('trial_count') == -1:
                 self.sig_warning.emit('trial count missing')
                 return False
-            temp = step_min[1].split()
+            temp = try_count[1].split()
             if len(temp) == 0:
                 self.trial = np.array([50, 50])
             elif len(temp) == 2:
@@ -350,6 +374,7 @@ class Worker(QThread):
             else:
                 self.sig_warning.emit('trial count parameter error')
                 return False
+            print('trial count:', self.trial)
 
             step_min = f.readline().split(':')
             if step_min[0].find('step_min') == -1:
@@ -376,6 +401,8 @@ class Worker(QThread):
             else:
                 self.sig_warning.emit('maximum step format error')
                 return False
+            print('step_min:%.3f %.3f\nstep_max:%.3f %.3f' %
+                  (self.step_min[0], self.step_min[1], self.step_max[0], self.step_max[1]))
 
             surface_range = f.readline().split(':')
             if surface_range[0].find('surface_range') == -1:
@@ -389,6 +416,7 @@ class Worker(QThread):
             else:
                 self.sig_warning.emit('surface range format error')
                 return False
+            print('surface range:', self.surface_range)
 
             while True:
                 if not f.readline().find('spectrum') == -1:
@@ -406,6 +434,7 @@ class Worker(QThread):
                     return False
             else:
                 self.S0 = 1
+            print('S0:%f' % self.S0)
 
             sig2 = f.readline().split(':')
             if sig2[0].find('SIG2') == -1:
@@ -419,6 +448,7 @@ class Worker(QThread):
                     return False
             else:
                 self.sig2 = 0
+            print('sig2:%f' % self.sig2)
 
             temp = f.readline().split(':')
             if temp[0].find('k_range') == -1:
@@ -444,6 +474,7 @@ class Worker(QThread):
             if k_range[0] >= k_range[1] or r_range[0] >= r_range[1]:
                 self.sig_warning.emit('r or k range value error')
                 return False
+            print('k range:%f %f\nr range:%f %f' % (k_range[0], k_range[1], r_range[0], r_range[1]))
 
             self.exp = np.array([EXP(_, k_range[0], k_range[1], r_range[0], r_range[1]) for _ in exp_path])
             for pol in self.exp:
@@ -463,6 +494,7 @@ class Worker(QThread):
                 self.sig_warning.emit('Please set E0 for %d atoms' % amount)
                 return False
             self.E0 = np.array([float(_) for _ in temp])
+            print('E0:', self.E0)
 
             rpath = f.readline().split(':')
             if rpath[0].find('rpath') == -1:
@@ -474,6 +506,7 @@ class Worker(QThread):
             except ValueError:
                 self.sig_warning.emit('rpath format error')
                 return False
+            print('rpath:', self.local_range)
 
             mts = f.readline().split(':')
             if mts[0].find('multiscattering') == -1:
@@ -487,6 +520,7 @@ class Worker(QThread):
             else:
                 self.sig_warning.emit('multi-scattering parameter error')
                 return False
+            print('multi scattering:', self.multiscattering_en)
 
             posi = f.tell()
             fspace = f.readline().split(':')
@@ -508,6 +542,7 @@ class Worker(QThread):
             while True:
                 if not f.readline().find('path') == -1:
                     break
+            print(r'fitting space:%s' % self.fit_space)
 
             temp = f.readline()
             if temp.split()[0].find('material_folder') == -1:
@@ -524,21 +559,10 @@ class Worker(QThread):
             self.simulation_name = temp.split(temp.split(':')[0] + ':')[1].split('\n')[0].strip()
             if self.simulation_name[-1] == '\\' or self.simulation_name[-1] == '/':
                 self.simulation_name = self.simulation_name[:-1]
+            print('material folder:%s\nsimulation name:%s' % (self.material_folder, self.simulation_name))
 
         # parameters region
-        print(exp_path)
-        print('weight:%d\nreplica size:%d\nsurface:%s\nmoving atoms:' % (self.weight, self.rep_size, self.surface))
-        print(self.init_pos)
-        print(self.init_element)
-        print('spherical coordinate:', self.spherical, '\nrandom deposition:', self.random_init,
-              '\nmove pattern:', self.move_pattern)
-        print('step_min:%.3f %.3f\nstep_max:%.3f %.3f\nS0:%f\nsig2:%f' %
-              (self.step_min[0], self.step_min[1], self.step_max[0], self.step_max[1], self.S0, self.sig2))
-        print('k range:%f %f\nr range:%f %f' % (k_range[0], k_range[1], r_range[0], r_range[1]))
-        print('E0:', self.E0)
-        print('rpath:', self.local_range)
-        print('multi scattering:', self.multiscattering_en)
-        print('material folder:%s\nsimulation name:%s' % (self.material_folder, self.simulation_name))
+
 
         self.r_now_pol = np.zeros(self.exp.size)
         self.r_lowest_pol = np.zeros(self.exp.size)
@@ -555,6 +579,7 @@ class Worker(QThread):
         self.sig_statusbar.emit('Running', 0)
         trials = np.zeros(self.rep_size)
         stamp0 = timer()
+        move_array = np.arange(self.rep_size)
         while True:
             if self.step_count % 100 == 0:
                 stamp1 = timer()
@@ -569,7 +594,7 @@ class Worker(QThread):
             if deviate.size > 0:
                 move_array = deviate if self.move_pattern else deviate[randrange(0, deviate.size)]
             else:'''
-            move_array = np.arange(self.rep_size) if self.move_pattern else np.array([randrange(0, self.rep_size)])
+            move_array = move_array if self.move_pattern else [choice(move_array)]
             trials -= trials
             for replica in move_array:
                 trials[replica] = self.rep[replica].walk(self.tau_i)
@@ -590,6 +615,7 @@ class Worker(QThread):
                         [self.chi_sum[_] * np.transpose([self.ft_sum[_]]) for _ in range(self.exp.size)])
                     r_new_pol = np.array([self.exp[_].r_factor_cross(self.cross_sum[_]) for _ in range(self.exp.size)])
                 r_new = r_new_pol.sum()
+                #if np.array([metropolis(self.r_now_pol[_], r_new_pol[_], self.tau_t) for _ in range(self.exp.size)]).all():
                 if metropolis(self.r_now, r_new, self.tau_t):
                     '''if deviate.size > 0:
                         print(rep_rf.mean(), rep_rf.var(), rep_rf[deviate])'''
@@ -862,6 +888,8 @@ class MainWindow(QMainWindow, Ui_MainWindow_Pol):
             for replica in self.thread.rep:
                 replica.write_result(self.thread.r_lowest, self.thread.r_now, self.thread.folder + r'\result')
             print('replica result wrote')
+            self.write_info(self.thread.folder)
+            print('information wrote')
             with open(self.thread.folder + r'\log.txt', 'w') as f:
                 for replica in self.thread.rep:
                     f.write('replica %d:\n' % replica.index)
@@ -903,14 +931,13 @@ class MainWindow(QMainWindow, Ui_MainWindow_Pol):
                                 result.write('%.3f ' % self.thread.exp[pol].cross[i][j])
                             result.write('\n')
             print('chi wrote')
-            self.write_info(self.thread.folder)
-            print('information wrote')
             fig = self.graphWidget.grab()
             fig.save(self.thread.folder + r'\observe.png', 'PNG')
             image = self.model.renderToArray((1000, 1000))
             pg.makeQImage(image).save(self.thread.folder + r'\model.png')
             self.statusbar.showMessage('Done!', 3000)
             self.continueButton.setEnabled(True)
+            print('saving finished.')
 
     def force_log(self):
         self.statusbar.showMessage('backup...', 0)
@@ -1043,7 +1070,9 @@ class MainWindow(QMainWindow, Ui_MainWindow_Pol):
                         f.write('%s %.6f %.6f %.6f\n' % (replica.cell.e_best[base + i], temp[0], temp[1], temp[2]))
                     for i in range(replica.cell.surface_e.size):
                         temp = replica.cell.c_best[i] - replica.cell.c_best[base]
-                        if sqrt((temp ** 2).sum()) < self.thread.local_range:
+                        local_range = self.thread.local_range[
+                            np.where(replica.cell.surface_symbol == replica.cell.surface_e[i])[0][0]]
+                        if sqrt((temp ** 2).sum()) < local_range:
                             f.seek(f.tell())
                             f.write('%s %.6f %.6f %.6f\n' % (replica.cell.surface_e[i], temp[0], temp[1], temp[2]))
             else:
@@ -1061,9 +1090,14 @@ class MainWindow(QMainWindow, Ui_MainWindow_Pol):
             f.truncate()
 
     def closeEvent(self, event):
-        if self.thread.flag:
-            self.cal_end()
-        event.accept()
+        reply = QMessageBox.question(self, 'Quit', 'Are you sure to shut down the simulation?\n(Auto save)',
+                                     QMessageBox.Yes | QMessageBox.No)
+        if reply == QMessageBox.No:
+            event.ignore()
+        else:
+            if self.thread.flag:
+                self.cal_end()
+            event.accept()
 
     def pol_info(self, chik, factor, chiex=np.array([])):
         if len(self.polx.plotItem.items) == 1:

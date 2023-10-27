@@ -200,8 +200,8 @@ class CrossFactory(SimpleCubicFactory):
 class ATOMS:
     def __init__(
             self, database='', file=' ', pos=np.array([]), element=np.array([]), spherical=True, random=True,
-            local_range=np.array([]), surface='', step=np.array([]), step_range=np.array([]), crate_flag=True,
-            surface_range=np.array([]), trial=50):
+            local_range=np.array([]), surface='', surface_path='', step=np.array([]), step_range=np.array([]),
+            crate_flag=True, surface_range=np.array([]), trial=50):
         self.file = file
         self.surface = surface
         self.coordinate_whole = np.array([])
@@ -219,6 +219,7 @@ class ATOMS:
         self.limit = surface_range
         self.trial = trial
         self.surface_symbol = np.array([])
+        self.surface_path = surface_path
 
         if not self.surface == '' and self.limit.size == 0:
             if self.surface == 'TiO2':
@@ -260,13 +261,13 @@ class ATOMS:
         if crate_flag:
             if self.surface == 'TiO2':
                 self.local_range = np.tile(self.local_range, 2) if self.local_range.size == 1 else self.local_range
-                root = self.create_TiO2(random)
+                root = self.create_TiO2(random, self.surface_path)
                 self.deposition(root)
                 self.c_best = self.coordinate_whole.copy()
                 self.e_best = self.element_whole.copy()
             elif self.surface == 'Al2O3':
                 self.local_range = np.tile(self.local_range, 2) if self.local_range.size == 1 else self.local_range
-                root = self.create_Al2O3(random)
+                root = self.create_Al2O3(random, self.surface_path)
                 self.deposition(root)
                 self.c_best = self.coordinate_whole.copy()
                 self.e_best = self.element_whole.copy()
@@ -281,10 +282,12 @@ class ATOMS:
             self.c_temp = self.coordinate.copy()
             self.e_temp = self.element.copy()
 
-    def create_TiO2(self, ran):
+    def create_TiO2(self, ran, file):
         ele = np.array([])
         coor = np.array([])
-        with open(os.getcwd() + r'\TiO2.xyz', 'r') as f:
+        if len(file) == 0:
+            file = os.getcwd() + r'\TiO2.xyz'
+        with open(file, 'r') as f:
             f.readline()
             f.readline()
             while True:
@@ -328,12 +331,15 @@ class ATOMS:
         for i in adsorb:
             if self.surface_c[i][2] == top[0] or self.surface_c[i][2] == top[1]:
                 top_layer = np.append(top_layer, i)
+        center = 38
         return top_layer[randrange(top_layer.size)] if ran else center
 
-    def create_Al2O3(self, ran):
+    def create_Al2O3(self, ran, file):
         ele = np.array([])
         coor = np.array([])
-        with open(os.getcwd() + r'\Al2O3.xyz', 'r') as f:
+        if len(file) == 0:
+            file = os.getcwd() + r'\Al2O3.xyz'
+        with open(file, 'r') as f:
             f.readline()
             f.readline()
             while True:
@@ -437,7 +443,7 @@ class ATOMS:
                 temp = data.split()
                 coordinate = np.append(coordinate, np.array([float(temp[0]), float(temp[1]), float(temp[2])]))
                 element = np.append(element, temp[4][:-1])
-                #distance = np.append(distance, float(temp[5]))
+                distance = np.append(distance, float(temp[5]))
         print('data read')
         if not self.surface == '':
             self.local_range = np.tile(self.local_range, 2) if self.local_range.size == 1 else self.local_range

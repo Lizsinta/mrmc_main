@@ -8,8 +8,9 @@ import numpy as np
 class RMC4:
     def __init__(
             self, index, exp, sig2, energy, s02, data_base, path, init_pos=np.array([]), init_element=np.array([]),
-            spherical=True, random=True, local_range=np.array([]), surface='', surface_range=np.array([]), r2chi=True,
-            step=np.array([]), step_range=np.array([]), ini_flag=True, ms=False, weight=3, trial=np.array([])):
+            spherical=True, random=True, local_range=np.array([]), surface='', surface_path='',
+            surface_range=np.array([]), r2chi=True, step=np.array([]), step_range=np.array([]),
+            ini_flag=True, ms=False, weight=3, trial=np.array([])):
         self.index = index
         self.data_base = data_base
         self.path = path
@@ -25,8 +26,8 @@ class RMC4:
         self.r2chi = r2chi
 
         self.cell = ATOMS(database=data_base, file=path, pos=init_pos, element=init_element, spherical=spherical,
-                          random=random, local_range=local_range, surface=surface, step=step, step_range=step_range,
-                          crate_flag=ini_flag, surface_range=surface_range, trial=trial[1])
+                          random=random, local_range=local_range, surface=surface, surface_path=surface_path, step=step,
+                          step_range=step_range, crate_flag=ini_flag, surface_range=surface_range, trial=trial[1])
         self.table = np.zeros(self.exp.size, dtype=TABLE_POL)
         self.r_factor_i = np.zeros(self.exp.size)
         self.r_factor_t = 0
@@ -67,7 +68,7 @@ class RMC4:
             else:
                 if self.debug:
                     print('start move')
-                target, failure = self.cell.moving_spherical(None)
+                target, failure = self.cell.moving(None)
                 if self.debug:
                     print('end move', target, failure, self.cell.distance[target])
                 if failure:
