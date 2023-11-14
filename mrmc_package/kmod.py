@@ -40,7 +40,7 @@ def win_function(k_range=0, name='hanning', win_width=10):
     return t_window
 
 
-def k_range(k=np.array([]), xi=np.array([]), start=3.0, end=12.0, padding=True, win_name='hanning'):
+def k_range(k=np.array([]), xi=np.array([]), start=3.0, end=12.0, padding=True, win_name='hanning', get_k=True):
     # choose k range,applying window fuctions
     k_start = np.where(k > start)[0][0] if not start == k[0] else 0
     try:
@@ -53,7 +53,10 @@ def k_range(k=np.array([]), xi=np.array([]), start=3.0, end=12.0, padding=True, 
     if padding:
         return np.concatenate((np.zeros(k_start), xi_t, np.zeros(k.size - k_end)))
     else:
-        return k[k_start:k_end], xi_t
+        if get_k:
+            return k[k_start:k_end], xi_t
+        else:
+            return xi_t
 
 
 def deltaE_shift(k=np.array([]), xi=np.array([]), dE=0.0, factor=0.2624683854935682):

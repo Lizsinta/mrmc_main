@@ -257,7 +257,7 @@ class TABLE_POL:
         if get_k:
             self.k, chi_cut = k_range(self.k0, chi0, self.k_head, self.k_tail, False)
         else:
-            k, chi_cut = k_range(self.k0, chi0, self.k_head, self.k_tail, False)
+            chi_cut = k_range(self.k0, chi0, self.k_head, self.k_tail, padding=False, get_k=get_k)
         self.chi, self.ft = back_k_space(chi_cut, self.r, self.k.size, self.r_head, self.r_tail)
 
 

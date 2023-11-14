@@ -1,4 +1,4 @@
-from mrmc_package import ATOMS, metropolis, TABLE_POL, get_distance
+from mrmc_package import ATOMS, metropolis, TABLE_POL, TABLE_LARCH, get_distance
 
 from math import sqrt
 from random import randrange
@@ -6,12 +6,11 @@ import os
 import numpy as np
 
 class RMC4:
-    def __init__(
-            self, index, exp, sig2, energy, s02, data_base, path, init_pos=np.array([]), init_element=np.array([]),
+    def __init__(self, index, exp, sig2, energy, s02, data_base, path, init_pos=np.array([]), init_element=np.array([]),
             spherical=True, random=True, local_range=np.array([]), surface='', surface_range=np.array([]), r2chi=True,
             step=np.array([]), step_range=np.array([]), ini_flag=True, ms=False, weight=3, trial=np.array([])):
         self.index = index
-        self.data_base = data_base
+
         self.path = path
         self.sig2 = sig2
         self.s02 = s02
@@ -27,9 +26,17 @@ class RMC4:
         self.cell = ATOMS(database=data_base, file=path, pos=init_pos, element=init_element, spherical=spherical,
                           random=random, local_range=local_range, surface=surface, step=step, step_range=step_range,
                           crate_flag=ini_flag, surface_range=surface_range, trial=trial[1])
-        self.table = np.zeros(self.exp.size, dtype=TABLE_POL)
+        self.feff = 'larch'
+        if self.feff == 'table':
+            self.data_base = data_base
+        elif self.feff == 'larch':
+            self.data_base = path + r'\feff'
+            if not os.path.exists(self.data_base):
+                os.makedirs(self.data_base)
+        self.table = np.zeros(self.exp.size, dtype=TABLE_POL if self.feff == 'table' else TABLE_LARCH)
         self.r_factor_i = np.zeros(self.exp.size)
         self.r_factor_t = 0
+
 
     def table_init(self):
         if self.exp.size == 3:
@@ -38,10 +45,19 @@ class RMC4:
             pol = np.arange(2) + 2
         else:
             pol = np.array([-1])
-        self.table = np.array([TABLE_POL(self.exp[i].k_start, self.exp[i].k_end, self.exp[i].r_start,
-                                         self.exp[i].r_end, self.sig2, self.energy, self.s02, self.exp[i].k0,
-                                         self.cell.coordinate.copy(), self.cell.element.copy(), self.data_base,
-                                         pol[i], ms_en=self.ms, weight=self.weight) for i in range(pol.size)])
+        if self.feff == 'table':
+            self.table = np.array([TABLE_POL(self.exp[i].k_start, self.exp[i].k_end, self.exp[i].r_start,
+                                             self.exp[i].r_end, self.sig2, self.energy, self.s02, self.exp[i].k0,
+                                             self.cell.coordinate.copy(), self.cell.element.copy(), self.data_base,
+                                             pol[i], ms_en=self.ms, weight=self.weight) for i in range(pol.size)])
+        elif self.feff == 'larch':
+            if not os.path.exists(self.data_base + r'\%d' % self.index):
+                os.makedirs(self.data_base + r'\%d' % self.index)
+            self.table = np.array([TABLE_LARCH(self.exp[i].k_start, self.exp[i].k_end, self.exp[i].r_start,
+                                               self.exp[i].r_end, self.sig2, self.energy[0], self.s02, self.exp[i].k0,
+                                               self.cell.coordinate, self.cell.element,
+                                               self.data_base + r'\%d\%d' % (self.index, i), pol[i], ms_en=self.ms,
+                                               weight=self.weight) for i in range(pol.size)])
         if self.r2chi:
             self.r_factor_i = np.array([self.exp[_].r_factor_chi(self.table[_].chi) for _ in range(self.exp.size)])
         else:
@@ -62,9 +78,13 @@ class RMC4:
                     self.cell.distance = get_distance(self.cell.coordinate)
                     trials = 0
                     continue
-                for pol in self.table:
-                    pol.moving_group(self.cell.c_temp.copy(), self.cell.distance.copy(),
-                                     self.cell.e_temp.copy(), self.debug)
+                if self.feff == 'table':
+                    for pol in self.table:
+                        pol.moving_group(self.cell.c_temp.copy(), self.cell.distance.copy(),
+                                         self.cell.e_temp.copy(), self.debug)
+                elif self.feff == 'larch':
+                    for pol in self.table:
+                        pol.moving_group(self.cell.c_temp, self.cell.e_temp, self.debug)
             else:
                 if self.debug:
                     print('start move')
@@ -104,7 +124,7 @@ class RMC4:
                     continue
             else:
                 break
-        return trials
+        return [trials, self.index]
 
     def accept(self):
         if self.debug:
@@ -123,13 +143,18 @@ class RMC4:
         self.cell.c_temp = self.cell.coordinate.copy()
         if self.moved_atom == 0:
             self.cell.distance = get_distance(self.cell.coordinate)
-            for pol in self.table:
-                pol.recover_group(self.cell.coordinate.copy(), self.cell.distance.copy(),
-                                  self.cell.element.copy(), self.debug)
+            if self.feff == 'table':
+                for pol in self.table:
+                    pol.recover_group(self.cell.coordinate.copy(), self.cell.distance.copy(),
+                                      self.cell.element.copy(), self.debug)
+            elif self.feff == 'larch':
+                for pol in self.table:
+                    pol.recover_group(self.cell.element, self.debug)
         else:
             self.cell.distance[self.moved_atom] = sqrt((self.cell.c_temp[self.moved_atom] ** 2).sum())
             for pol in self.table:
                 pol.recover(self.moved_atom, self.cell.coordinate[self.moved_atom], self.debug)
+
 
     def write_result(self, r1, r2, path=''):
         if len(path) == 0:

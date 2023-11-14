@@ -1,4 +1,5 @@
 import time
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 from mrmc_package import EXP, RMC4, metropolis, Ui_MainWindow_Pol, folder_create, \
     scatter, line, init_3dplot, plot_Al2O3, plot_TiO2, fft_cut
@@ -497,13 +498,17 @@ class Worker(QThread):
                 self.sig_warning.emit('E0 not found')
                 return False
             temp = e0[1].split()
+
             amount = self.species.size - 1
             if not self.surface == '':
                 amount += 2
-            if not len(temp) == amount:
-                self.sig_statusbar.emit('Waring: number of E0 [%d] is less than specise [%d]' % (len(temp), amount), 0)
-                while not len(temp) == amount:
-                    temp.append(temp[-1])
+            if len(temp) > 1:
+                if not len(temp) == amount:
+                    self.sig_statusbar.emit('Waring: number of E0 [%d] is less than specise [%d]' % (len(temp), amount), 0)
+                    while not len(temp) == amount:
+                        temp.append(temp[-1])
+            else:
+                temp = [temp[0]] * amount
             self.E0 = np.array([float(_) for _ in temp])
 
             rpath = f.readline().split(':')
@@ -597,6 +602,7 @@ class Worker(QThread):
     def run(self):
         self.sig_statusbar.emit('Running', 0)
         trials = np.zeros(self.rep_size)
+        executor = ThreadPoolExecutor(4)
         while True:
             if self.step_count % self.backup_count == 0:
                 self.sig_backup.emit(True)
@@ -609,6 +615,10 @@ class Worker(QThread):
             else:'''
             move_array = np.arange(self.rep_size) if self.move_pattern else np.array([randrange(0, self.rep_size)])
             trials -= trials
+            '''move_task = [executor.submit(self.rep[replica].walk, self.tau_i) for replica in move_array]
+            for task in as_completed(move_task):
+                temp = task.result()
+                trials[temp[1]] = temp[0]'''
             for replica in move_array:
                 trials[replica] = self.rep[replica].walk(self.tau_i)
             if trials.sum() > 0:
@@ -896,14 +906,15 @@ class MainWindow(QMainWindow, Ui_MainWindow_Pol):
             print('replica result wrote')
             with open(self.thread.folder + r'\log.txt', 'w') as f:
                 for replica in self.thread.rep:
-                    f.write('replica %d:\n' % replica.index)
-                    for pol in range(self.thread.exp.size):
-                        for dat in replica.table[pol].log_1st:
-                            f.write('%d ' % dat)
-                        f.write('\n')
-                        for xi in range(replica.table[pol].k.size):
-                            f.write('%f %f\n' % (replica.table[pol].k[xi], replica.table[pol].chi[xi]))
-                        f.write('\n')
+                    if replica.feff == 'table':
+                        f.write('replica %d:\n' % replica.index)
+                        for pol in range(self.thread.exp.size):
+                            for dat in replica.table[pol].log_1st:
+                                f.write('%d ' % dat)
+                            f.write('\n')
+                            for xi in range(replica.table[pol].k.size):
+                                f.write('%f %f\n' % (replica.table[pol].k[xi], replica.table[pol].chi[xi]))
+                            f.write('\n')
             print('log data wrote')
             self.write_model()
             print('model wrote')

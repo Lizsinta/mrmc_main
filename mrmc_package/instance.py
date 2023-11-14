@@ -399,6 +399,9 @@ class ATOMS:
         self.coordinate = self.coordinate_whole[-self.local_size:].copy()
         self.element = self.element_whole[-self.local_size:].copy()
         self.surface_symbol = np.unique(self.surface_e)
+        print(self.surface_e)
+        print(self.surface_symbol)
+        print(distance)
         for j in range(self.surface_symbol.size):
             for i in range(self.surface_e.size):
                 if self.surface_e[i] == self.surface_symbol[j] and distance[i] < self.local_range[j]:
