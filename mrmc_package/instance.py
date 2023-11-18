@@ -453,7 +453,7 @@ class ATOMS:
                 temp = data.split()
                 coordinate_best = np.append(coordinate_best, np.array([float(temp[0]), float(temp[1]), float(temp[2])]))
                 element_best = np.append(element_best, temp[4][:-1])
-                #distance_best = np.append(distance_best, float(temp[5]))
+                distance_best = np.append(distance_best, float(temp[5]))
             while True:
                 lines = f.readline()
                 if not lines.find('final') == -1:
@@ -465,7 +465,7 @@ class ATOMS:
                 temp = data.split()
                 coordinate = np.append(coordinate, np.array([float(temp[0]), float(temp[1]), float(temp[2])]))
                 element = np.append(element, temp[4][:-1])
-                #distance = np.append(distance, float(temp[5]))
+                distance = np.append(distance, float(temp[5]))
         print('data read')
         if not self.surface == '':
             self.coordinate_whole = coordinate.reshape(element.size, 3)
@@ -509,10 +509,12 @@ class ATOMS:
         while trials > 0:
             self.c_temp = self.coordinate.copy()
             target = randrange(1, self.distance.size) if target_i is None else target_i
-            self.c_temp[target][randrange(3)] += round(randrange(-self.step_range[1], self.step_range[1] + 1)
-                                                       * self.step[1], 3)
+            self.c_temp[target][randrange(3)] += round(randrange(-self.step_range[1], self.step_range[1] + 1) * self.step[1], 3)
             distance = np.delete(get_distance(self.c_temp - self.c_temp[target]), target)
             if np.min(distance) > self.local_range[0] or np.min(distance) < self.min_distance:
+                trials -= 1
+                continue
+            if not (2.85 < sqrt(((self.c_temp[2] - self.c_temp[3]) ** 2).sum()) < 2.95):
                 trials -= 1
                 continue
             self.distance[target] = sqrt((self.c_temp[target] ** 2).sum())

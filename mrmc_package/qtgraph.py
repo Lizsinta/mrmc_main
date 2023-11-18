@@ -160,11 +160,11 @@ if __name__ == '__main__':
 
     g3d.setSizePolicy(g2d.sizePolicy())  # Priority of 2d graph is higher, it would squeeze out the 3d graph
 
-    sc.setTransform()
+    '''sc.setTransform()
     sc.translate(1, 1, 1)
     print(sc.viewTransform())
     sc.translate(-1, -1, -1, True)
-    print(sc.viewTransform())
+    print(sc.viewTransform())'''
 
     if (flags.interactive != 1) or not hasattr(QtCore, 'PYQT_VERSION'):
         QApplication.instance().exec_()

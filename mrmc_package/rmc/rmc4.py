@@ -26,7 +26,7 @@ class RMC4:
         self.cell = ATOMS(database=data_base, file=path, pos=init_pos, element=init_element, spherical=spherical,
                           random=random, local_range=local_range, surface=surface, step=step, step_range=step_range,
                           crate_flag=ini_flag, surface_range=surface_range, trial=trial[1])
-        self.feff = 'larch'
+        self.feff = 'table'
         if self.feff == 'table':
             self.data_base = data_base
         elif self.feff == 'larch':
@@ -124,7 +124,10 @@ class RMC4:
                     continue
             else:
                 break
-        return [trials, self.index]
+        if self.feff == 'table':
+            return trials
+        elif self.feff == 'larch':
+            return [trials, self.index]
 
     def accept(self):
         if self.debug:
@@ -154,7 +157,6 @@ class RMC4:
             self.cell.distance[self.moved_atom] = sqrt((self.cell.c_temp[self.moved_atom] ** 2).sum())
             for pol in self.table:
                 pol.recover(self.moved_atom, self.cell.coordinate[self.moved_atom], self.debug)
-
 
     def write_result(self, r1, r2, path=''):
         if len(path) == 0:

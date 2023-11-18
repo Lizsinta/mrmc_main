@@ -74,6 +74,7 @@ class Worker(QThread):
         self.flag_viwer = True
 
 
+
     def init(self):
         self.rep = np.empty(self.rep_size, dtype=RMC4)
         self.folder = folder_create(self.simulation_name)
@@ -144,6 +145,7 @@ class Worker(QThread):
 
         print('information displayed')
 
+    @property
     def get_folder(self):
         try:
             self.rep = np.empty(len(os.listdir(self.folder + r'\result')), dtype=RMC4)
@@ -335,8 +337,8 @@ class Worker(QThread):
                         self.sig_warning.emit('satellite atoms format error')
                         return False
             if self.init_eledex.size < self.init_element.size:
-                self.init_eledex = np.arange(self.init_element.size)
-            self.species = self.init_element[np.unique(self.init_eledex, return_index=True)[1]]
+                self.init_eledex = np.unique(self.init_element, return_inverse=True)[1]
+            self.species = self.init_element[np.unique(self.init_element, return_index=True)[1]]
             self.init_pos = np.reshape(self.init_pos, (self.init_element.size, 3))
 
             spherical = f.readline().split(':')
@@ -572,6 +574,15 @@ class Worker(QThread):
             if self.simulation_name[-1] == '\\' or self.simulation_name[-1] == '/':
                 self.simulation_name = self.simulation_name[:-1]
 
+        de_table = []
+        with open(self.material_folder + r'\table.ini', 'r') as f:
+            f.readline()
+            for i in range(3):
+                temp = f.readline().split(':')[1].strip()
+                if not temp == 'NULL':
+                    de_table.append(temp)
+        self.de_table = np.asarray(de_table)
+
         # parameters region
         print(exp_path)
         print('weight:%d\nreplica size:%d\nsurface:%s\nmoving atoms:' % (self.weight, self.rep_size, self.surface))
@@ -583,7 +594,7 @@ class Worker(QThread):
         print('step_min:%.3f %.3f\nstep_max:%.3f %.3f\nS0:%f\nsig2:%f' %
               (self.step_min[0], self.step_min[1], self.step_max[0], self.step_max[1], self.S0, self.sig2))
         print('k range:%f %f\nr range:%f %f' % (k_range[0], k_range[1], r_range[0], r_range[1]))
-        print('E0:', self.E0)
+        print('E0:', ['%s=%.f' % (self.de_table[i], self.E0[i]) for i in range(self.E0.size)])
         print('rpath:', self.local_range)
         print('multi scattering:', self.multiscattering_en)
         print('material folder:%s\nsimulation name:%s' % (self.material_folder, self.simulation_name))
@@ -602,7 +613,7 @@ class Worker(QThread):
     def run(self):
         self.sig_statusbar.emit('Running', 0)
         trials = np.zeros(self.rep_size)
-        executor = ThreadPoolExecutor(4)
+        #executor = ThreadPoolExecutor(4)
         while True:
             if self.step_count % self.backup_count == 0:
                 self.sig_backup.emit(True)
@@ -762,7 +773,7 @@ class MainWindow(QMainWindow, Ui_MainWindow_Pol):
         self.statusbar.showMessage('Reading', 0)
         if self.thread.read_inp(self.thread.folder + r'\mrmc.inp'):
             self.window_init()
-        if self.thread.get_folder():
+        if self.thread.get_folder:
             self.statusbar.showMessage('Done!', 3000)
             sleep(3)
             self.startButton.setEnabled(True)
@@ -857,9 +868,9 @@ class MainWindow(QMainWindow, Ui_MainWindow_Pol):
         self.c2 = np.zeros(self.thread.species.size - 1)
         self.c3 = np.zeros(self.thread.species.size - 1)
         if self.r_aver.size > 0:
-            self.CuO_Box.setTitle('%s-%s bond' % (self.thread.species[0], self.thread.species[1]))
+            self.CuO_Box.setTitle('%s-%s (dE:%.1f)' % (self.thread.species[0], self.thread.species[1], self.thread.E0[np.where(self.thread.de_table == self.thread.species[1])[0][0]]))
             if self.r_aver.size > 1:
-                self.CuS_Box.setTitle('%s-%s bond' % (self.thread.species[0], self.thread.species[2]))
+                self.CuS_Box.setTitle('%s-%s (dE:%.1f)' % (self.thread.species[0], self.thread.species[2], self.thread.E0[np.where(self.thread.de_table == self.thread.species[2])[0][0]]))
             else:
                 self.CuS_Box.setTitle('Null')
         else:
@@ -1204,7 +1215,9 @@ class MainWindow(QMainWindow, Ui_MainWindow_Pol):
                 replica.cell.adsorption = True
 
     def plot_init(self):
-        color = ['blue', 'yellow', 'red', 'green', 'orange', 'purple', 'cyan']
+        color = ['blue', 'red', 'yellow', 'green', 'orange', 'purple', 'cyan']
+        if not self.g3dLayout.isEmpty():
+            self.g3dLayout.removeWidget(self.model)
         self.model = gl.GLViewWidget()
         self.model.setContextMenuPolicy(Qt.CustomContextMenu)
         self.model.customContextMenuRequested.connect(self.save_3d_menu)
