@@ -73,6 +73,8 @@ class Worker(QThread):
         self.tau_ratio = self.tau_i / self.tau_t
         self.flag_viwer = True
 
+        self.surface_path = ''
+
 
 
     def init(self):
@@ -87,9 +89,10 @@ class Worker(QThread):
             self.rep[index] = RMC4(index, self.exp, self.sig2, self.E0, self.S0, data_base=self.material_folder,
                                    path=self.folder, init_pos=self.init_pos.copy(), init_element=self.init_element,
                                    spherical=self.spherical, random=self.random_init, local_range=self.local_range,
-                                   surface=self.surface, surface_range=self.surface_range, r2chi=self.fit_space,
-                                   step=self.step_min, step_range=self.step_max, ini_flag=True,
-                                   ms=self.multiscattering_en, weight=self.weight, trial=self.trial)
+                                   surface=self.surface, surface_path=self.surface_path,
+                                   surface_range=self.surface_range, r2chi=self.fit_space, step=self.step_min,
+                                   step_range=self.step_max, ini_flag=True, ms=self.multiscattering_en,
+                                   weight=self.weight, trial=self.trial)
             self.rep[index].table_init()
         print('replica created')
         with open(self.folder + r'/model.dat', 'w') as f:
@@ -116,10 +119,11 @@ class Worker(QThread):
             f.write('%s %.6f %.6f %.6f\n' % (self.rep[0].cell.center_e, 0, 0, 0))
             for replica in self.rep:
                 for i in range(1, replica.cell.element.size):
-                    f.write('%s %.6f %.6f %.6f\n' % (replica.cell.element[i],
-                                                     replica.cell.coordinate[i][0],
-                                                     replica.cell.coordinate[i][1],
-                                                     replica.cell.coordinate[i][2]))
+                    f.write('%s %.6f %.6f %.6f %.6f\n' % (replica.cell.element[i],
+                                                          replica.cell.coordinate[i][0],
+                                                          replica.cell.coordinate[i][1],
+                                                          replica.cell.coordinate[i][2],
+                                                          replica.cell.distance[i]))
             f.write('\n')
         print('initial model saved')
         self.chi_sum = chi_average(self.rep, self.exp.size)
@@ -134,6 +138,7 @@ class Worker(QThread):
                                             self.exp[_].r_end) for _ in range(self.exp.size)])
             r_new_pol = np.array([self.exp[_].r_factor_cross(
                 self.chi_sum[_] * np.transpose([self.ft_sum[_]])) for _ in range(self.exp.size)])
+        print(r_new_pol)
         self.sig_plotinfo.emit(self.chi_sum if not self.fit_space == 'r' else self.ft_sum, r_new_pol, self.ft_sum)
         if self.flag_viwer:
             self.sig_init3d.emit(self.surface, self.rep_size)
@@ -141,6 +146,9 @@ class Worker(QThread):
         self.r_lowest = self.r_now
         self.chi_sum_best = self.chi_sum.copy()
         self.step_count = 1
+
+        self.sig_current.emit(self.r_now)
+        self.sig_best.emit(self.r_lowest)
         self.sig_step.emit(self.step_count)
 
         print('information displayed')
@@ -257,15 +265,28 @@ class Worker(QThread):
                 return False
             self.rep_size = int(rep_size[1])
 
-            temp = f.readline().split(':')
-            if temp[0].find('surface') == -1:
+            temp = f.readline()
+            if temp.find('surface') == -1:
                 self.sig_warning.emit('surface formal error')
                 return False
-            surface = temp[1].strip()
-            if len(surface) == 0 or (not surface == 'TiO2' and not surface == 'Al2O3'):
-                self.surface = ''
+            surface_para = temp.strip().split('surface:')[1]
+            if len(surface_para) > 1:
+                surface_para = surface_para.split()
+                surface = surface_para[0]
+                print(surface_para)
+                if len(surface_para) > 1:
+                    if os.path.exists(surface_para[1]):
+                        self.surface_path = surface_para[1]
+                    else:
+                        self.sig_warning.emit(r"surface file doesn't exist")
+                if not surface == 'TiO2' and not surface == 'Al2O3':
+                    self.surface = ''
+                else:
+                    self.surface = surface
             else:
-                self.surface = surface
+                self.surface = ''
+
+            print('surface:%s(%s)' % (self.surface, self.surface_path if len(self.surface_path) > 0 else 'default'))
 
             if f.readline().find('center_atom') == -1:
                 self.sig_warning.emit('center_atom line missing')
@@ -381,11 +402,11 @@ class Worker(QThread):
                 self.sig_warning.emit('move pattern parameter error')
                 return False
 
-            step_min = f.readline().split(':')
-            if step_min[0].find('trial_count') == -1:
+            try_count = f.readline().split(':')
+            if try_count[0].find('trial_count') == -1:
                 self.sig_warning.emit('trial count missing')
                 return False
-            temp = step_min[1].split()
+            temp = try_count[1].split()
             if len(temp) == 0:
                 self.trial = np.array([50, 50])
             elif len(temp) == 2:
@@ -597,6 +618,7 @@ class Worker(QThread):
         print('E0:', ['%s=%.f' % (self.de_table[i], self.E0[i]) for i in range(self.E0.size)])
         print('rpath:', self.local_range)
         print('multi scattering:', self.multiscattering_en)
+        print('fitting space:', self.fit_space)
         print('material folder:%s\nsimulation name:%s' % (self.material_folder, self.simulation_name))
 
         self.r_now_pol = np.zeros(self.exp.size)
@@ -1098,7 +1120,9 @@ class MainWindow(QMainWindow, Ui_MainWindow_Pol):
                         f.write('%s %.6f %.6f %.6f\n' % (replica.cell.e_best[base + i], temp[0], temp[1], temp[2]))
                     for i in range(replica.cell.surface_e.size):
                         temp = replica.cell.c_best[i] - replica.cell.c_best[base]
-                        if sqrt((temp ** 2).sum()) < self.thread.local_range:
+                        local_range = self.thread.local_range[
+                            np.where(replica.cell.surface_symbol == replica.cell.surface_e[i])[0][0]]
+                        if sqrt((temp ** 2).sum()) < local_range:
                             f.seek(f.tell())
                             f.write('%s %.6f %.6f %.6f\n' % (replica.cell.surface_e[i], temp[0], temp[1], temp[2]))
             else:
@@ -1117,8 +1141,15 @@ class MainWindow(QMainWindow, Ui_MainWindow_Pol):
 
     def closeEvent(self, event):
         if self.thread.flag:
-            self.cal_end()
-        event.accept()
+            reply = QMessageBox.question(self, 'Quit', 'Are you sure to shut down the simulation?\n(Auto save)',
+                                         QMessageBox.Yes | QMessageBox.No)
+            if reply == QMessageBox.No:
+                event.ignore()
+            else:
+                self.cal_end()
+            event.accept()
+        else:
+            event.accept()
 
     def pol_info(self, chik, factor, chiex=np.array([])):
         if len(self.polx.plotItem.items) == 1:
@@ -1330,9 +1361,6 @@ class MainWindow(QMainWindow, Ui_MainWindow_Pol):
                 self.r_S_lcd.display(self.r_aver[1])
                 self.c2_S_lcd.display(self.c2[1])
                 self.c3_S_lcd.display(self.c3[1])
-
-
-
 
     def new_event(self):
         self.thread.init()

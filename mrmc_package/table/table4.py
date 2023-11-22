@@ -36,7 +36,7 @@ class TABLE_POL:
         self.length = np.round(np.arange(float(l_range[0]), float(l_range[1]) + l_step, l_step), self.decimals)
         self.angle = np.linspace(0, pi, 91)
         self.angle_degree = self.angle / pi * 180
-        self.path_size = self.length.size ** 2 * self.angle.size
+        self.path_size = int(self.length.size ** 2 * self.angle.size)
 
         self.chi_1st = np.zeros((self.amount, k0.size))
         self.log_1st = np.zeros(self.amount)
@@ -59,8 +59,8 @@ class TABLE_POL:
         self.single = np.empty((self.atom.size, self.length.size), dtype=FEFF)
         if self.ms_en:
             self.commute = np.empty((self.atom.size, self.length.size), dtype=FEFF)
-            self.double = np.empty((comb(self.atom.size, 2), self.path_size), dtype=FEFF)
-            self.triple = np.empty((comb(self.atom.size, 2), self.path_size), dtype=FEFF)
+            self.double = np.empty((int(comb(self.atom.size, 2)), self.path_size), dtype=FEFF)
+            self.triple = np.empty((int(comb(self.atom.size, 2)), self.path_size), dtype=FEFF)
 
         # start=timer()
         self.create_single()
@@ -83,7 +83,7 @@ class TABLE_POL:
 
     def single_scattering(self, target):
         symbol = np.where(self.atom[1:] == self.element[target])[0][0]
-        file = self.folder + r'\table2_%d' % (symbol+1)
+        file = self.folder + r'\table2_%d' % (symbol + 1)
         table = self.single[symbol]
         de = self.dE[symbol]
         if self.distance[target] < self.length[-1]:

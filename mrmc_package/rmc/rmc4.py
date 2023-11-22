@@ -7,8 +7,9 @@ import numpy as np
 
 class RMC4:
     def __init__(self, index, exp, sig2, energy, s02, data_base, path, init_pos=np.array([]), init_element=np.array([]),
-            spherical=True, random=True, local_range=np.array([]), surface='', surface_range=np.array([]), r2chi=True,
-            step=np.array([]), step_range=np.array([]), ini_flag=True, ms=False, weight=3, trial=np.array([])):
+                 spherical=True, random=True, local_range=np.array([]), surface='', surface_path='',
+                 surface_range=np.array([]), r2chi=True, step=np.array([]), step_range=np.array([]),
+                 ini_flag=True, ms=False, weight=3, trial=np.array([])):
         self.index = index
 
         self.path = path
@@ -24,8 +25,8 @@ class RMC4:
         self.r2chi = r2chi
 
         self.cell = ATOMS(database=data_base, file=path, pos=init_pos, element=init_element, spherical=spherical,
-                          random=random, local_range=local_range, surface=surface, step=step, step_range=step_range,
-                          crate_flag=ini_flag, surface_range=surface_range, trial=trial[1])
+                          random=random, local_range=local_range, surface=surface, surface_path=surface_path, step=step,
+                          step_range=step_range, crate_flag=ini_flag, surface_range=surface_range, trial=trial[1])
         self.feff = 'table'
         if self.feff == 'table':
             self.data_base = data_base
@@ -62,13 +63,14 @@ class RMC4:
             self.r_factor_i = np.array([self.exp[_].r_factor_chi(self.table[_].chi) for _ in range(self.exp.size)])
         else:
             self.r_factor_i = np.array([self.exp[_].r_factor_ft(self.table[_].ft) for _ in range(self.exp.size)])
+        if self.debug:
+            print(self.r_factor_i)
         self.r_factor_t = self.r_factor_i.sum()
 
     def walk(self, tau):
         trials = 50
         while trials > 0:
-            if not self.cell.surface == '':
-                self.moved_atom = randrange(self.cell.local_size)
+            self.moved_atom = randrange(self.cell.local_size) if not self.cell.surface == '' else None
             if not self.cell.surface == '' and self.moved_atom == 0:
                 failure = self.cell.moving_center()
                 if failure:
@@ -88,7 +90,7 @@ class RMC4:
             else:
                 if self.debug:
                     print('start move')
-                target, failure = self.cell.moving(None)
+                target, failure = self.cell.moving(self.moved_atom)
                 if self.debug:
                     print('end move', target, failure, self.cell.distance[target])
                 if failure:
