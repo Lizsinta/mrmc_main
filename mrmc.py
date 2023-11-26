@@ -248,6 +248,10 @@ class Worker(QThread):
             if exp_path.size == 0:
                 self.sig_warning.emit('no experimental data')
                 return False
+            for i in range(exp_path.size):
+                if not os.path.exists(exp_path[i]):
+                    self.sig_warning.emit('experimental file not found')
+                    return False
 
             weight = f.readline().split(':')
             if weight[0].find('weight') == -1:
@@ -285,8 +289,6 @@ class Worker(QThread):
                     self.surface = surface
             else:
                 self.surface = ''
-
-            print('surface:%s(%s)' % (self.surface, self.surface_path if len(self.surface_path) > 0 else 'default'))
 
             if f.readline().find('center_atom') == -1:
                 self.sig_warning.emit('center_atom line missing')
@@ -786,6 +788,7 @@ class MainWindow(QMainWindow, Ui_MainWindow_Pol):
         self.thread.file_inp = file_name[0].replace('/', '\\')
         if self.thread.read_inp(self.thread.file_inp):
             self.window_init()
+        self.statusbar.showMessage('Done!', 3000)
 
     def folder_read(self):
         self.thread.folder = QFileDialog.getExistingDirectory(self, 'select folder...', os.getcwd())
@@ -1145,6 +1148,7 @@ class MainWindow(QMainWindow, Ui_MainWindow_Pol):
                                          QMessageBox.Yes | QMessageBox.No)
             if reply == QMessageBox.No:
                 event.ignore()
+                return
             else:
                 self.cal_end()
             event.accept()
@@ -1254,6 +1258,7 @@ class MainWindow(QMainWindow, Ui_MainWindow_Pol):
         self.model.customContextMenuRequested.connect(self.save_3d_menu)
         self.scatter = np.array([])
         self.bond = np.array([])
+        
         if not self.thread.surface == '':
             init_3dplot(self.model, grid=False, view=40, title='model')  # set initial view distance by "view"
             if self.thread.surface == 'TiO2':

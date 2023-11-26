@@ -277,7 +277,7 @@ def plot_TiO2(coor, ele, graph):
         if ele[i] == 'Ti' or ele[i] == 'Al':
             color = 'grey'
         else:
-            if coor[i][2] > 0:
+            if coor[i][2] > 0.5:
                 color = 'purple'
             else:
                 color = 'red'

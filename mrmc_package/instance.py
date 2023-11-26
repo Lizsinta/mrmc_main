@@ -360,7 +360,6 @@ class ATOMS:
         for i in adsorb:
             if self.surface_c[i][2] == top[0] or self.surface_c[i][2] == top[1]:
                 top_layer = np.append(top_layer, i)
-        center = 38
         return top_layer[randrange(top_layer.size)] if ran else center
 
     def create_Al2O3(self, ran, file):
