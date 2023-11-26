@@ -7,7 +7,9 @@ from time import perf_counter as timer
 import matplotlib.pyplot as plt
 from mrmc_package import k_range, back_k_space, get_distance
 
-eletable = np.append(np.array(['None']), np.loadtxt(os.getcwd() + r'\element.dat', dtype='str', usecols=1))
+#eletable = np.append(np.array(['None']), np.loadtxt(os.getcwd() + r'\element.dat', dtype='str', usecols=1))
+
+
 
 
 class TABLE_LARCH:
