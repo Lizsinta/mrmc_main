@@ -1153,7 +1153,7 @@ class MainWindow(QMainWindow, Ui_MainWindow_Pol):
                 self.cal_end()
             event.accept()
         else:
-            event.ignore()
+            event.accept()
 
     def pol_info(self, chik, factor, chiex=np.array([])):
         if len(self.polx.plotItem.items) == 1:
