@@ -269,6 +269,7 @@ class Worker(QThread):
                 return False
             self.rep_size = int(rep_size[1])
 
+            surface_symbol = np.array([])
             temp = f.readline()
             if temp.find('surface') == -1:
                 self.sig_warning.emit('surface formal error')
@@ -287,6 +288,7 @@ class Worker(QThread):
                     self.surface = ''
                 else:
                     self.surface = surface
+                    surface_symbol = np.array(['O', 'Ti']) if surface == 'TiO2' else np.array(['O', 'Al'])
             else:
                 self.surface = ''
 
@@ -523,18 +525,21 @@ class Worker(QThread):
                 self.sig_warning.emit('E0 not found')
                 return False
             temp = e0[1].split()
-
-            amount = self.species.size - 1
-            if not self.surface == '':
-                amount += 2
-            if len(temp) > 1:
-                if not len(temp) == amount:
-                    self.sig_statusbar.emit('Waring: number of E0 [%d] is less than specise [%d]' % (len(temp), amount), 0)
-                    while not len(temp) == amount:
-                        temp.append(temp[-1])
+            if not temp[0].find('-') == -1:
+                temp = np.char.split(np.asarray(temp), '-')
+                de = {_[0]: float(_[1]) for _ in temp}
+                for i in self.species[1:]:
+                    if not i in de:
+                        self.sig_warning.emit('Warning: E0 for %s missing' % (i))
+                        return False
+                for i in surface_symbol:
+                    if not i in de:
+                        self.sig_warning.emit('Warning: E0 for %s missing' % (i))
+                        return False
+                self.E0 = de
             else:
-                temp = [temp[0]] * amount
-            self.E0 = np.array([float(_) for _ in temp])
+                sym = np.append(self.species[1:], surface_symbol)
+                self.E0 = {_[0]:float(temp[0]) for _ in sym}
 
             rpath = f.readline().split(':')
             if rpath[0].find('rpath') == -1:
