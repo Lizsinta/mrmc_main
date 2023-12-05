@@ -85,7 +85,7 @@ class TABLE_POL:
         symbol = np.where(self.atom[1:] == self.element[target])[0][0]
         file = self.folder + r'\table2_%d' % (symbol + 1)
         table = self.single[symbol]
-        de = self.dE[symbol]
+        de = self.dE[self.element[target]]
         if self.distance[target] < self.length[-1]:
             try:
                 index = np.where(self.length == round(self.distance[target], self.decimals))[0][0]
@@ -127,7 +127,7 @@ class TABLE_POL:
         symbol = np.where(self.atom[1:] == self.element[target])[0][0]
         file = self.folder + r'\table2s_%d' % (symbol+1)
         table = self.single[symbol]
-        de = self.dE[symbol]
+        de = self.dE[self.element[target]]
         if self.distance[target] < self.length[-1] / 2:
             index = np.where(self.length == round(self.distance[target], self.decimals))[0][0]
             if not type(table[index]) == FEFF:
@@ -168,7 +168,7 @@ class TABLE_POL:
         table2nd = self.double[int(symbol.sum())]
         file3rd = self.folder + r'\table4_%d_%d' % (symbol[0] + 1, symbol[1] + 1)
         table3rd = self.triple[int(symbol.sum()) - 2]
-        de = self.dE[np.where(self.atom[1:] == self.element[step1])[0][0]]
+        de = self.dE[self.element[step1]]
         d_vector = sqrt(((self.coordinate[step2] - self.coordinate[step1]) ** 2).sum())
         if round(self.distance[step1], self.decimals) > self.length[-1] or \
                 round(d_vector, self.decimals) > self.length[-1]:

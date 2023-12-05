@@ -74,6 +74,8 @@ class Worker(QThread):
         self.flag_viwer = True
 
         self.surface_path = ''
+        self.local_range = {}
+        self.rep = np.array([], dtype=RMC4)
 
 
 
@@ -278,7 +280,6 @@ class Worker(QThread):
             if len(surface_para) > 1:
                 surface_para = surface_para.split()
                 surface = surface_para[0]
-                print(surface_para)
                 if len(surface_para) > 1:
                     if os.path.exists(surface_para[1]):
                         self.surface_path = surface_para[1]
@@ -522,11 +523,16 @@ class Worker(QThread):
 
             e0 = f.readline().split(':')
             if e0[0].find('delta_E') == -1:
-                self.sig_warning.emit('E0 not found')
+                self.sig_warning.emit('ΔE not found')
+                return False
+            amount = self.species.size - 1 + surface_symbol.size
+            if len(e0) == 1:
+                self.sig_waring.emit(
+                    'Please set ΔE for %d speices in the format element=rpath or 1 ΔE for all species' % amount)
                 return False
             temp = e0[1].split()
-            if not temp[0].find('-') == -1:
-                temp = np.char.split(np.asarray(temp), '-')
+            if not temp[0].find('=') == -1:
+                temp = np.char.split(np.asarray(temp), '=')
                 de = {_[0]: float(_[1]) for _ in temp}
                 for i in self.species[1:]:
                     if not i in de:
@@ -545,12 +551,25 @@ class Worker(QThread):
             if rpath[0].find('rpath') == -1:
                 self.sig_warning.emit('rpath not found')
                 return False
-            try:
-                rpath = rpath[1].split()
-                self.local_range = np.array([float(rpath[_]) for _ in range(len(rpath))])
-            except ValueError:
-                self.sig_warning.emit('rpath format error')
+            amount = self.species.size - 1 + surface_symbol.size
+            if len(rpath) == 1:
+                self.sig_waring.emit('Please set rpath for %d speices in the format element=rpath or 1 rpath for all species' % amount)
                 return False
+            if not rpath[1].find('=') == -1:
+                temp = np.char.split(np.asarray(rpath[1].split()), '=')
+                rpath = {_[0]: float(_[1]) for _ in temp}
+                for i in self.species[1:]:
+                    if not i in rpath:
+                        self.sig_warning.emit('Warning: rapth for %s missing' % (i))
+                        return False
+                for i in surface_symbol:
+                    if not i in rpath:
+                        self.sig_warning.emit('Warning: rapth for %s missing' % (i))
+                        return False
+                self.local_range = rpath
+            else:
+                sym = np.append(self.species[1:], surface_symbol)
+                self.local_range = {_[0]: float(rpath[1]) for _ in sym}
 
             mts = f.readline().split(':')
             if mts[0].find('multiscattering') == -1:
@@ -602,18 +621,11 @@ class Worker(QThread):
             if self.simulation_name[-1] == '\\' or self.simulation_name[-1] == '/':
                 self.simulation_name = self.simulation_name[:-1]
 
-        de_table = []
-        with open(self.material_folder + r'\table.ini', 'r') as f:
-            f.readline()
-            for i in range(3):
-                temp = f.readline().split(':')[1].strip()
-                if not temp == 'NULL':
-                    de_table.append(temp)
-        self.de_table = np.asarray(de_table)
-
         # parameters region
         print(exp_path)
-        print('weight:%d\nreplica size:%d\nsurface:%s\nmoving atoms:' % (self.weight, self.rep_size, self.surface))
+        print('weight:%d\nreplica size:%d' % (self.weight, self.rep_size))
+        print('surface:%s %s' % (self.surface, self.surface_path))
+        print('moving atoms:')
         print(self.init_pos)
         print(self.init_element)
         print('unique element: ', self.species)
@@ -622,7 +634,7 @@ class Worker(QThread):
         print('step_min:%.3f %.3f\nstep_max:%.3f %.3f\nS0:%f\nsig2:%f' %
               (self.step_min[0], self.step_min[1], self.step_max[0], self.step_max[1], self.S0, self.sig2))
         print('k range:%f %f\nr range:%f %f' % (k_range[0], k_range[1], r_range[0], r_range[1]))
-        print('E0:', ['%s=%.f' % (self.de_table[i], self.E0[i]) for i in range(self.E0.size)])
+        print('E0:', self.E0)
         print('rpath:', self.local_range)
         print('multi scattering:', self.multiscattering_en)
         print('fitting space:', self.fit_space)
@@ -898,9 +910,9 @@ class MainWindow(QMainWindow, Ui_MainWindow_Pol):
         self.c2 = np.zeros(self.thread.species.size - 1)
         self.c3 = np.zeros(self.thread.species.size - 1)
         if self.r_aver.size > 0:
-            self.CuO_Box.setTitle('%s-%s (dE:%.1f)' % (self.thread.species[0], self.thread.species[1], self.thread.E0[np.where(self.thread.de_table == self.thread.species[1])[0][0]]))
+            self.CuO_Box.setTitle('%s-%s (dE:%.1f)' % (self.thread.species[0], self.thread.species[1], self.thread.E0[self.thread.species[1]]))
             if self.r_aver.size > 1:
-                self.CuS_Box.setTitle('%s-%s (dE:%.1f)' % (self.thread.species[0], self.thread.species[2], self.thread.E0[np.where(self.thread.de_table == self.thread.species[2])[0][0]]))
+                self.CuS_Box.setTitle('%s-%s (dE:%.1f)' % (self.thread.species[0], self.thread.species[2], self.thread.E0[self.thread.species[2]]))
             else:
                 self.CuS_Box.setTitle('Null')
         else:
