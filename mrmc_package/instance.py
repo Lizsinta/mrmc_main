@@ -534,9 +534,10 @@ class ATOMS:
             if np.min(distance) > self.local_range[self.element[target]] or np.min(distance) < self.min_distance:
                 trials -= 1
                 continue
-            '''if not (2.85 < sqrt(((self.c_temp[2] - self.c_temp[3]) ** 2).sum()) < 2.95):
-                trials -= 1
-                continue'''
+            if self.c_temp.shape[0] > 3 and self.element[3] == 'O':
+                if not (2.80 < sqrt(((self.c_temp[2] - self.c_temp[3]) ** 2).sum()) < 3):
+                    trials -= 1
+                    continue
             self.distance[target] = sqrt((self.c_temp[target] ** 2).sum())
             break
         flag = True if trials == 0 else False
@@ -600,10 +601,10 @@ class ATOMS:
                 trials -= 1
                 continue
 
-            if self.surface == 'TiO2':
+            '''if self.surface == 'TiO2':
                 if not self.tca_filter(self.cw_temp[-1]):
                     trials -= 1
-                    continue
+                    continue'''
 
             distance = get_distance(self.cw_temp[:-self.local_size] - self.cw_temp[-self.local_size])
             self.c_temp = self.cw_temp[-self.local_size:].copy()

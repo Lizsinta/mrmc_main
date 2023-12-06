@@ -15,3 +15,4 @@ from mrmc_package.rmc.rmc4 import RMC4
 from mrmc_package.ui_pol import Ui_MainWindow as Ui_MainWindow_Pol
 from mrmc_package.qtgraph import scatter, cylinder, line, bar, plane, hemisphere, init_3dplot
 from mrmc_package.analysis import plot_TiO2, plot_Al2O3, read_chi
+from mrmc_package.eletable import eletable

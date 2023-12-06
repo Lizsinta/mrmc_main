@@ -311,14 +311,13 @@ class Worker(QThread):
                 try:
                     self.init_pos = np.append(self.init_pos, np.array([float(temp[0]), float(temp[1]), float(temp[2])]))
                     self.init_eledex = np.append(self.init_eledex, int(temp[3]))
-                    self.init_element = np.append(self.init_element,
-                                                  temp[4][:-1] if temp[4][-1].isnumeric() else temp[4])
+                    celement = temp[4][:-1] if temp[4][-1].isnumeric() else temp[4]
                 except ValueError or IndexError:
                     self.sig_warning.emit('center atom format error')
                     return False
             else:
                 try:
-                    self.init_element = np.append(self.init_element, temp[0])
+                    celement = temp[0]
                     self.init_eledex = np.append(self.init_eledex, 0)
                     self.init_pos = np.append(self.init_pos, np.array([float(temp[1]), float(temp[2]), float(temp[3])]))
                 except ValueError or IndexError:
@@ -362,9 +361,12 @@ class Worker(QThread):
                     except ValueError or IndexError:
                         self.sig_warning.emit('satellite atoms format error')
                         return False
+            self.species = self.init_element[np.unique(self.init_element, return_index=True)[1]]
+            self.init_element = np.append(celement, self.init_element)
+            print(self.species, self.init_element)
+            print(self.init_eledex)
             if self.init_eledex.size < self.init_element.size:
                 self.init_eledex = np.unique(self.init_element, return_inverse=True)[1]
-            self.species = self.init_element[np.unique(self.init_element, return_index=True)[1]]
             self.init_pos = np.reshape(self.init_pos, (self.init_element.size, 3))
 
             spherical = f.readline().split(':')
@@ -906,13 +908,13 @@ class MainWindow(QMainWindow, Ui_MainWindow_Pol):
             if self.thread.fit_space == 'x':
                 self.plotex[i].addItem(self.line_exp[i + len(self.plot)])
 
-        self.r_aver = np.zeros(self.thread.species.size - 1)
-        self.c2 = np.zeros(self.thread.species.size - 1)
-        self.c3 = np.zeros(self.thread.species.size - 1)
+        self.r_aver = np.zeros(self.thread.species.size)
+        self.c2 = np.zeros(self.thread.species.size)
+        self.c3 = np.zeros(self.thread.species.size)
         if self.r_aver.size > 0:
-            self.CuO_Box.setTitle('%s-%s (dE:%.1f)' % (self.thread.species[0], self.thread.species[1], self.thread.E0[self.thread.species[1]]))
+            self.CuO_Box.setTitle('%s-%s (dE:%.1f)' % (self.thread.init_element[0], self.thread.species[0], self.thread.E0[self.thread.species[0]]))
             if self.r_aver.size > 1:
-                self.CuS_Box.setTitle('%s-%s (dE:%.1f)' % (self.thread.species[0], self.thread.species[2], self.thread.E0[self.thread.species[2]]))
+                self.CuS_Box.setTitle('%s-%s (dE:%.1f)' % (self.thread.init_element[0], self.thread.species[1], self.thread.E0[self.thread.species[1]]))
             else:
                 self.CuS_Box.setTitle('Null')
         else:
@@ -1031,8 +1033,8 @@ class MainWindow(QMainWindow, Ui_MainWindow_Pol):
             info.write('\n')
             info.write('surface: %s\n' % self.thread.surface)
             info.write('dE: ')
-            for i in range(len(self.thread.E0)):
-                info.write('%f ' % self.thread.E0[i])
+            for i in self.thread.E0:
+                info.write('%s=%.1f ' % (i, self.thread.E0[i]))
             info.write('\n')
             info.write('k_range: %f %f\n' % (self.thread.exp[0].k_start, self.thread.exp[0].k_end))
             info.write('r_range: %f %f\n' % (self.thread.exp[0].r_start, self.thread.exp[0].r_end))
@@ -1049,9 +1051,9 @@ class MainWindow(QMainWindow, Ui_MainWindow_Pol):
                                                                                      self.thread.r_lowest_pol[0],
                                                                                      self.thread.r_lowest_pol[1],
                                                                                      self.thread.r_lowest_pol[2]))
-            for i in range(self.r_aver.size - 1):
-                info.write('%s-%s bond(r,c2,c3): %f    %f    %f\n' % (self.thread.species[0],
-                                                                      self.thread.species[i + 1],
+            for i in range(self.r_aver.size):
+                info.write('%s-%s bond(r,c2,c3): %f    %f    %f\n' % (self.thread.init_element[0],
+                                                                      self.thread.species[i],
                                                                       self.r_aver[i], self.c2[i], self.c3[i]))
 
     def write_model(self):
@@ -1140,9 +1142,7 @@ class MainWindow(QMainWindow, Ui_MainWindow_Pol):
                         f.write('%s %.6f %.6f %.6f\n' % (replica.cell.e_best[base + i], temp[0], temp[1], temp[2]))
                     for i in range(replica.cell.surface_e.size):
                         temp = replica.cell.c_best[i] - replica.cell.c_best[base]
-                        local_range = self.thread.local_range[
-                            np.where(replica.cell.surface_symbol == replica.cell.surface_e[i])[0][0]]
-                        if sqrt((temp ** 2).sum()) < local_range:
+                        if sqrt((temp ** 2).sum()) < self.thread.local_range[replica.cell.surface_e[i]]:
                             f.seek(f.tell())
                             f.write('%s %.6f %.6f %.6f\n' % (replica.cell.surface_e[i], temp[0], temp[1], temp[2]))
             else:
@@ -1200,7 +1200,7 @@ class MainWindow(QMainWindow, Ui_MainWindow_Pol):
                     self.line_chi[i].setData(x=self.thread.exp[i].r_cut, y=chik[i])
 
         for i in range(self.r_aver.size):
-            dist = np.array([replica.cell.distance[np.where(self.thread.init_eledex == (i + 1))[0]] for replica in
+            dist = np.array([replica.cell.distance[1:][np.where(replica.cell.element[1:] == self.thread.species[i])[0]] for replica in
                              self.thread.rep]).ravel()
             self.r_aver[i] = dist.mean()
             self.c2[i] = dist.var()

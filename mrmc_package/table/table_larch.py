@@ -5,9 +5,7 @@ import numpy as np
 from larch.xafs import feffrunner
 from time import perf_counter as timer
 import matplotlib.pyplot as plt
-from mrmc_package import k_range, back_k_space, get_distance
-
-#eletable = np.append(np.array(['None']), np.loadtxt(os.getcwd() + r'\element.dat', dtype='str', usecols=1))
+from mrmc_package import k_range, back_k_space, get_distance, eletable
 
 
 
