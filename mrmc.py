@@ -775,7 +775,7 @@ class MainWindow(QMainWindow, Ui_MainWindow_Pol):
         self.ratioCheckBox.clicked.connect(self.tau_ratio_lock)
 
         self.startButton.clicked.connect(self.cal_start)
-        self.endButton.clicked.connect(self.cal_end)
+        self.endButton.clicked.connect(lambda: self.cal_end(self.thread.folder))
         self.continueButton.clicked.connect(self.restart)
         self.actioninp.triggered.connect(self.read_inp)
         self.action_new.triggered.connect(self.new_event)
@@ -786,6 +786,7 @@ class MainWindow(QMainWindow, Ui_MainWindow_Pol):
         self.action_new.setEnabled(False)
         self.continueButton.setEnabled(False)
         self.action3D_viewer.triggered.connect(self.switch_viwer)
+        self.action_save_init.setEnabled(False)
 
         self.thread.sig_plotinfo.connect(self.pol_info)
         self.thread.sig_init3d.connect(self.plot_init)
@@ -929,6 +930,8 @@ class MainWindow(QMainWindow, Ui_MainWindow_Pol):
         self.thread.flag = True
         if self.thread.folder == '':
             self.thread.init()
+            self.save_init()
+            self.thread.flag = True
             self.actioninp.setEnabled(False)
         self.setWindowTitle('mRMC (%s)' % self.thread.folder)
         self.thread.t_start = timer()
@@ -947,9 +950,11 @@ class MainWindow(QMainWindow, Ui_MainWindow_Pol):
         self.continueButton.setEnabled(False)
         self.thread.start()
 
-    def cal_end(self):
+    def cal_end(self, folder=''):
         self.statusbar.showMessage('Saving...', 0)
         self.thread.t_end = timer() - self.thread.t_start + self.thread.t_base
+        if folder == '':
+            folder = self.thread.folder
         sleep(0.1)
         if self.thread.flag:
             self.thread.flag = False
@@ -957,9 +962,9 @@ class MainWindow(QMainWindow, Ui_MainWindow_Pol):
                 self.thread.wait()
             print('iteration ended')
             for replica in self.thread.rep:
-                replica.write_result(self.thread.r_lowest, self.thread.r_now, self.thread.folder + r'\result')
+                replica.write_result(self.thread.r_lowest, self.thread.r_now, folder + r'\result')
             print('replica result wrote')
-            with open(self.thread.folder + r'\log.txt', 'w') as f:
+            with open(folder + r'\log.txt', 'w') as f:
                 for replica in self.thread.rep:
                     if replica.feff == 'table':
                         f.write('replica %d:\n' % replica.index)
@@ -974,7 +979,7 @@ class MainWindow(QMainWindow, Ui_MainWindow_Pol):
             self.write_model()
             print('model wrote')
             for pol in range(self.thread.exp.size):
-                with open(self.thread.folder + r'\chi_sum%d.txt' % (pol + 1), 'w') as result:
+                with open(folder + r'\chi_sum%d.txt' % (pol + 1), 'w') as result:
                     result.write('[calculated spectrum]\n')
                     for _ in range(self.thread.chi_sum[pol].size):
                         result.write('   %f     %f\n' % (self.thread.exp[pol].k[_], self.thread.chi_sum[pol][_]))
@@ -1001,15 +1006,23 @@ class MainWindow(QMainWindow, Ui_MainWindow_Pol):
                                 result.write('%.3f ' % self.thread.exp[pol].cross[i][j])
                             result.write('\n')
             print('chi wrote')
-            self.write_info(self.thread.folder)
+            self.write_info(folder)
             print('information wrote')
             fig = self.graphWidget.grab()
-            fig.save(self.thread.folder + r'\observe.png', 'PNG')
+            fig.save(folder + r'\observe.png', 'PNG')
             if self.thread.flag_viwer:
                 image = np.transpose(self.model.renderToArray((1000, 1000)))
-                pg.makeQImage(image).save(self.thread.folder + r'\model.png')
+                pg.makeQImage(image).save(folder + r'\model.png')
             self.statusbar.showMessage('Done!', 3000)
             self.continueButton.setEnabled(True)
+
+    def save_init(self):
+        f_init = self.thread.folder + r'\init'
+        if not os.path.exists(f_init):
+            os.makedirs(f_init)
+        self.cal_end(f_init)
+        os.popen('copy "%s" "%s"' % (self.thread.file_inp, f_init + r'\mrmc.inp'))
+
 
     def force_log(self):
         self.statusbar.showMessage('backup...', 0)
@@ -1167,7 +1180,7 @@ class MainWindow(QMainWindow, Ui_MainWindow_Pol):
                 event.ignore()
                 return
             else:
-                self.cal_end()
+                self.cal_end(self.thread.folder)
             event.accept()
         else:
             event.accept()
@@ -1386,6 +1399,8 @@ class MainWindow(QMainWindow, Ui_MainWindow_Pol):
 
     def new_event(self):
         self.thread.init()
+        self.thread.flag = True
+        self.save_init()
         self.actioninp.setEnabled(False)
 
     def time_display(self, time):

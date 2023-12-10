@@ -573,9 +573,7 @@
     <addaction name="action_new"/>
     <addaction name="action_open"/>
     <addaction name="action_log"/>
-    <addaction name="action_save_as"/>
-    <addaction name="separator"/>
-    <addaction name="action_read_ini"/>
+    <addaction name="action_save_init"/>
    </widget>
    <widget class="QMenu" name="menuoption">
     <property name="title">
@@ -634,12 +632,12 @@
     </font>
    </property>
   </action>
-  <action name="action_save_as">
+  <action name="action_save_init">
    <property name="enabled">
-    <bool>false</bool>
+    <bool>true</bool>
    </property>
    <property name="text">
-    <string>save as...</string>
+    <string>save initial</string>
    </property>
    <property name="font">
     <font>

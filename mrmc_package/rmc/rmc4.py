@@ -163,6 +163,8 @@ class RMC4:
     def write_result(self, r1, r2, path=''):
         if len(path) == 0:
             path = self.path + r'\result'
+        if not os.path.exists(path):
+            os.makedirs(path)
         with open(path + r'\result%d.txt' % self.index, 'w') as best:
             coor = self.cell.coordinate_whole if not self.cell.surface == '' else self.cell.coordinate
             ele = self.cell.element_whole if not self.cell.surface == '' else self.cell.element
