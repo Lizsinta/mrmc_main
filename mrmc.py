@@ -4,6 +4,8 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from mrmc_package import EXP, RMC4, metropolis, Ui_MainWindow_Pol, folder_create, \
     scatter, line, init_3dplot, plot_Al2O3, plot_TiO2, fft_cut
 
+from sui_de import Ui_Form as Ui_dE
+
 import os
 from time import perf_counter as timer
 from time import sleep
@@ -72,6 +74,7 @@ class Worker(QThread):
         self.tau_i = 1e-2
         self.tau_ratio = self.tau_i / self.tau_t
         self.flag_viwer = True
+        self.flag_de_change = False
 
         self.surface_path = ''
         self.local_range = {}
@@ -128,31 +131,11 @@ class Worker(QThread):
                                                           replica.cell.distance[i]))
             f.write('\n')
         print('initial model saved')
-        self.chi_sum = chi_average(self.rep, self.exp.size)
-        if self.fit_space == 'k':
-            r_new_pol = np.array([self.exp[_].r_factor_chi(self.chi_sum[_]) for _ in range(self.exp.size)])
-        elif self.fit_space == 'r':
-            self.ft_sum = np.array([fft_cut(self.chi_sum[_], self.exp[_].r, self.exp[_].r_start,
-                                            self.exp[_].r_end) for _ in range(self.exp.size)])
-            r_new_pol = np.array([self.exp[_].r_factor_ft(self.ft_sum[_]) for _ in range(self.exp.size)])
-        else:
-            self.ft_sum = np.array([fft_cut(self.chi_sum[_], self.exp[_].r, self.exp[_].r_start,
-                                            self.exp[_].r_end) for _ in range(self.exp.size)])
-            r_new_pol = np.array([self.exp[_].r_factor_cross(
-                self.chi_sum[_] * np.transpose([self.ft_sum[_]])) for _ in range(self.exp.size)])
-        print(r_new_pol)
-        self.sig_plotinfo.emit(self.chi_sum if not self.fit_space == 'r' else self.ft_sum, r_new_pol, self.ft_sum)
+        self.step_count = 1
+        self.sig_step.emit(self.step_count)
+        self.cal_spectrum()
         if self.flag_viwer:
             self.sig_init3d.emit(self.surface, self.rep_size)
-        self.r_now = r_new_pol.sum()
-        self.r_lowest = self.r_now
-        self.chi_sum_best = self.chi_sum.copy()
-        self.step_count = 1
-
-        self.sig_current.emit(self.r_now)
-        self.sig_best.emit(self.r_lowest)
-        self.sig_step.emit(self.step_count)
-
         print('information displayed')
 
     @property
@@ -181,8 +164,12 @@ class Worker(QThread):
             temp = info.readline().split()
             self.surface = temp[1] if len(temp) > 1 else ''
             self.E0 = [float(_) for _ in info.readline().split()[1:]]'''
-            for i in range(6):
+            for i in range(3):
                 info.readline()
+            temp = info.readline().split(': ')[1].split()
+            e0 = {_[0]: float(_[1]) for _ in np.char.split(np.asarray(temp, dtype=str), '=')}
+            info.readline()
+            info.readline()
             self.step_count = int(info.readline().split()[1])
             self.t_base = float(info.readline().split()[1])
             self.tau_t = float(info.readline().split()[1])
@@ -194,7 +181,7 @@ class Worker(QThread):
         print('information read')
 
         for index in range(self.rep_size):
-            self.rep[index] = RMC4(index, self.exp, self.sig2, self.E0, self.S0, data_base=self.material_folder,
+            self.rep[index] = RMC4(index, self.exp, self.sig2, e0, self.S0, data_base=self.material_folder,
                                    path=self.folder, init_pos=self.init_pos.copy(), init_element=self.init_element,
                                    spherical=self.spherical, random=self.random_init, local_range=self.local_range,
                                    surface=self.surface, surface_range=self.surface_range, r2chi=self.fit_space,
@@ -203,6 +190,17 @@ class Worker(QThread):
             print('replica %d created' % index)
             self.rep[index].read_result()
 
+        self.sig_step.emit(self.step_count)
+        self.sig_time.emit(self.t_base)
+        self.sig_tau.emit(self.tau_t, self.tau_i)
+        self.tau_ratio = self.tau_i / self.tau_t
+        self.cal_spectrum()
+        if self.flag_viwer:
+            self.sig_init3d.emit(self.surface, self.rep_size)
+        print('information displayed')
+        return True
+
+    def cal_spectrum(self):
         self.chi_sum = chi_average(self.rep, self.exp.size)
         if self.fit_space == 'k':
             r_new_pol = np.array([self.exp[_].r_factor_chi(self.chi_sum[_]) for _ in range(self.exp.size)])
@@ -213,24 +211,16 @@ class Worker(QThread):
         else:
             self.ft_sum = np.array([fft_cut(self.chi_sum[_], self.exp[_].r, self.exp[_].r_start,
                                             self.exp[_].r_end) for _ in range(self.exp.size)])
-            self.cross_sum = np.array([self.chi_sum[_] * np.transpose([self.ft_sum[_]]) for _ in range(self.exp.size)])
-            r_new_pol = np.array([self.exp[_].r_factor_cross(self.cross_sum[_]) for _ in range(self.exp.size)])
+            r_new_pol = np.array([self.exp[_].r_factor_cross(
+                self.chi_sum[_] * np.transpose([self.ft_sum[_]])) for _ in range(self.exp.size)])
+        self.sig_plotinfo.emit(self.chi_sum if not self.fit_space == 'r' else self.ft_sum, r_new_pol, self.ft_sum)
+
         self.r_now = r_new_pol.sum()
+        self.r_lowest = self.r_now
         self.chi_sum_best = self.chi_sum.copy()
 
-        self.sig_step.emit(self.step_count)
-        self.sig_time.emit(self.t_base)
-        self.sig_best.emit(self.r_lowest)
         self.sig_current.emit(self.r_now)
-
-        self.sig_tau.emit(self.tau_t, self.tau_i)
-        self.tau_ratio = self.tau_i / self.tau_t
-
-        self.sig_plotinfo.emit(self.chi_sum if not self.fit_space == 'r' else self.ft_sum, r_new_pol, self.ft_sum)
-        if self.flag_viwer:
-            self.sig_init3d.emit(self.surface, self.rep_size)
-        print('information displayed')
-        return True
+        self.sig_best.emit(self.r_lowest)
 
     def read_inp(self, file):
         with open(file, 'r') as f:
@@ -661,6 +651,11 @@ class Worker(QThread):
             if self.step_count % self.backup_count == 0:
                 self.sig_backup.emit(True)
                 self.flag = False
+            if self.flag_de_change:
+                for replica in self.rep:
+                    for pol in range(self.exp.size):
+                        replica.table[pol].dE.update(self.E0)
+                self.flag_de_change = False
             '''rep_rf = np.array([replica.r_factor_t for replica in self.rep])
             deviate = np.where(rep_rf > np.average(rep_rf)*2)[0]
             print(np.average(rep_rf), rep_rf[deviate])
@@ -749,6 +744,8 @@ class MainWindow(QMainWindow, Ui_MainWindow_Pol):
         self.setWindowIcon(QIcon(':\\mRMC.ico'))
         self.setMinimumSize(0, 0)
 
+        self.Win_dE = SubWindowDE()
+
         self.thread = Worker()
         self.thread.sig_warning.connect(self.warning_window)
         self.thread.sig_close.connect(self.close_signal)
@@ -787,6 +784,7 @@ class MainWindow(QMainWindow, Ui_MainWindow_Pol):
         self.continueButton.setEnabled(False)
         self.action3D_viewer.triggered.connect(self.switch_viwer)
         self.action_save_init.setEnabled(False)
+        self.action_dE.triggered.connect(self.open_de_window)
 
         self.thread.sig_plotinfo.connect(self.pol_info)
         self.thread.sig_init3d.connect(self.plot_init)
@@ -800,6 +798,11 @@ class MainWindow(QMainWindow, Ui_MainWindow_Pol):
         self.thread.sig_backup.connect(self.force_log)
         self.thread.sig_statusbar.connect(self.show_massage)
 
+        self.Win_dE.sig_de1.connect(self.de_change)
+        self.Win_dE.sig_de2.connect(self.de_change)
+        self.Win_dE.sig_de3.connect(self.de_change)
+        self.Win_dE.sig_default.connect(self.de_change)
+
     def read_inp(self):
         file_name = QFileDialog.getOpenFileName(self, 'select inp file...', os.getcwd(), '*.inp')
         if file_name[0] == '':
@@ -808,6 +811,7 @@ class MainWindow(QMainWindow, Ui_MainWindow_Pol):
         self.thread.file_inp = file_name[0].replace('/', '\\')
         if self.thread.read_inp(self.thread.file_inp):
             self.window_init()
+        self.Win_dE.init(self.thread.E0)
         self.statusbar.showMessage('Done!', 3000)
 
     def folder_read(self):
@@ -818,7 +822,9 @@ class MainWindow(QMainWindow, Ui_MainWindow_Pol):
         self.statusbar.showMessage('Reading', 0)
         if self.thread.read_inp(self.thread.folder + r'\mrmc.inp'):
             self.window_init()
+            self.Win_dE.init(self.thread.E0)
         if self.thread.get_folder:
+            self.Win_dE.read(self.thread.rep[0].table[0].dE)
             self.statusbar.showMessage('Done!', 3000)
             sleep(3)
             self.startButton.setEnabled(True)
@@ -1367,6 +1373,17 @@ class MainWindow(QMainWindow, Ui_MainWindow_Pol):
                 return
         self.statusbar.showMessage('successfully read', 3000)
 
+    def de_change(self):
+        self.thread.E0.update(self.Win_dE.de)
+        if not self.thread.flag:
+            for replica in self.thread.rep:
+                for pol in range(self.thread.exp.size):
+                    replica.table[pol].dE.update(self.thread.E0)
+                    replica.table[pol].flush()
+            self.thread.cal_spectrum()
+        else:
+            self.thread.flag_de_change = True
+
     def save_3d_menu(self, pos):
         target = self.sender()
         menu = QMenu()
@@ -1418,8 +1435,84 @@ class MainWindow(QMainWindow, Ui_MainWindow_Pol):
     def show_massage(self, massage, ms):
         self.statusbar.showMessage(massage, ms)
 
+    def open_de_window(self):
+        self.Win_dE.show()
+
     def close_signal(self, a):
         self.close()
+        self.Win_dE.close()
+
+class SubWindowDE(QMainWindow, Ui_dE):
+    sig_de1 = pyqtSignal()
+    sig_de2 = pyqtSignal()
+    sig_de3 = pyqtSignal()
+    sig_default = pyqtSignal()
+
+    def __init__(self):
+        super(SubWindowDE, self).__init__()
+        self.setupUi(self)
+
+        self.de = {}
+        self.de0 = {}
+        self.box_dict = {0: self.de1SpinBox, 1: self.de2SpinBox, 2: self.de3SpinBox}
+        for key in self.box_dict:
+            self.box_dict[key].setEnabled(False)
+        self.sig_dict = {}
+
+        self.closeButton.clicked.connect(self.hide_signal)
+
+
+    def init(self, de0:dict):
+        self.de = de0.copy()
+        self.de0 = de0.copy()
+
+        i = 0
+        for key in self.de:
+            self.box_dict[i].setEnabled(True)
+            self.box_dict[i].setValue(self.de[key])
+            self.box_dict[i].valueChanged.connect(self.de_change)
+            self.sig_dict[i] = key
+            i += 1
+
+        self.defaultButton.clicked.connect(self.set_default)
+
+    def read(self, de:dict):
+        self.de.update(de)
+        i = 0
+        for key in self.de0:
+            self.box_dict[i].setValue(self.de[key])
+            i += 1
+
+    def de_change(self):
+        signal = self.sender()
+        if signal.hasFocus():
+            if signal.objectName() == 'de1SpinBox':
+                self.de[self.sig_dict[0]] = signal.value()
+                self.sig_de1.emit()
+            elif signal.objectName() == 'de2SpinBox':
+                self.de[self.sig_dict[1]] = signal.value()
+                self.sig_de2.emit()
+            elif signal.objectName() == 'de3SpinBox':
+                self.de[self.sig_dict[2]] = signal.value()
+                self.sig_de3.emit()
+
+    def set_default(self):
+        i = 0
+        for key in self.de0:
+            self.box_dict[i].setValue(self.de0[key])
+            i += 1
+        self.de.update(self.de0)
+        self.sig_default.emit()
+
+
+    def closeEvent(self, a0):
+        a0.ignore()
+        self.hide_signal()
+    def hide_signal(self):
+        self.hide()
+
+
+
 
 if __name__ == '__main__':
     app = QApplication(argv)

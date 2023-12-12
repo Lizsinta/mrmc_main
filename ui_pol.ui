@@ -580,6 +580,7 @@
      <string>option</string>
     </property>
     <addaction name="action3D_viewer"/>
+    <addaction name="action_dE"/>
    </widget>
    <addaction name="menufile"/>
    <addaction name="menuoption"/>
@@ -670,6 +671,11 @@
    </property>
    <property name="text">
     <string>3D viewer</string>
+   </property>
+  </action>
+  <action name="action_dE">
+   <property name="text">
+    <string>dE</string>
    </property>
   </action>
  </widget>
