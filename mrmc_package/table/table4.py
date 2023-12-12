@@ -371,3 +371,10 @@ class TABLE_POL:
             # print('recover2', dist.size, elem.size, self.amount, self.log_1st.size)
             print('chi_1st:', self.chi_1st.shape)
         self.sum_up_chi(False, debug)
+
+    def flush(self):
+        self.create_single()
+        if self.ms_en:
+            self.create_commute()
+            self.create_multi()
+        self.sum_up_chi(False)
