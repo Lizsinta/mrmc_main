@@ -26,12 +26,12 @@ use('Qt5Agg')
 
 
 
-def chi_average(input_array=np.array([]), size=3):
+def chi_average(input_array:list, size=3):
     chi_sum = np.zeros((size, input_array[0].exp[0].k.size))
     for pol in range(size):
-        for index in range(input_array.size):
+        for index in range(len(input_array)):
             chi_sum[pol] += input_array[index].table[pol].chi
-    return chi_sum / input_array.size
+    return chi_sum / len(input_array)
 
 
 class Worker(QThread):
@@ -58,13 +58,15 @@ class Worker(QThread):
         self.t_end = 0.0
         self.r_now = 0
         self.r_lowest = 0
+        self.r_lowest_pol = np.array([])
         self.step_count = 0
         self.flag = False
         self.t_start = 0
-        self.rep = np.array([], dtype=RMC4)
+        self.rep = []
         self.file_inp = ''
         self.backup_count = 2000
         self.fit_space = 'x'
+
 
         self.chi_sum = np.array([])
         self.chi_sum_best = np.array([])
@@ -78,26 +80,25 @@ class Worker(QThread):
 
         self.surface_path = ''
         self.local_range = {}
-        self.rep = np.array([], dtype=RMC4)
 
 
 
     def init(self):
-        self.rep = np.empty(self.rep_size, dtype=RMC4)
         self.folder = folder_create(self.simulation_name)
         os.makedirs(self.folder + r'\result')
         os.popen('copy "%s" "%s"' % (self.material_folder + r'\feff.inp', self.folder + r'\feff.inp'))
         os.popen('copy "%s" "%s"' % (self.file_inp, self.folder + r'\mrmc.inp'))
         # os.popen('copy "%s" "%s"' % (self.material_folder + r'\feff8.exe', self.folder + r'\feff8.exe'))
         sleep(0.5)
+        self.rep = []
         for index in range(self.rep_size):
-            self.rep[index] = RMC4(index, self.exp, self.sig2, self.E0, self.S0, data_base=self.material_folder,
+            self.rep.append(RMC4(index, self.exp, self.sig2, self.E0, self.S0, data_base=self.material_folder,
                                    path=self.folder, init_pos=self.init_pos.copy(), init_element=self.init_element,
                                    spherical=self.spherical, random=self.random_init, local_range=self.local_range,
                                    surface=self.surface, surface_path=self.surface_path,
                                    surface_range=self.surface_range, r2chi=self.fit_space, step=self.step_min,
                                    step_range=self.step_max, ini_flag=True, ms=self.multiscattering_en,
-                                   weight=self.weight, trial=self.trial)
+                                   weight=self.weight, trial=self.trial))
             self.rep[index].table_init()
         print('replica created')
         with open(self.folder + r'/model.dat', 'w') as f:
@@ -134,6 +135,9 @@ class Worker(QThread):
         self.step_count = 1
         self.sig_step.emit(self.step_count)
         self.cal_spectrum()
+        self.r_lowest = self.r_now
+        self.chi_sum_best = self.chi_sum.copy()
+        self.sig_best.emit(self.r_lowest)
         if self.flag_viwer:
             self.sig_init3d.emit(self.surface, self.rep_size)
         print('information displayed')
@@ -141,7 +145,7 @@ class Worker(QThread):
     @property
     def get_folder(self):
         try:
-            self.rep = np.empty(len(os.listdir(self.folder + r'\result')), dtype=RMC4)
+            self.rep_size = len(os.listdir(self.folder + r'\result'))
         except ValueError:
             return False
         if not os.path.exists(self.folder + r'\backup'):
@@ -154,7 +158,7 @@ class Worker(QThread):
         os.popen('copy "%s" "%s"' % (self.folder + r'\observe.png', self.folder + r'\backup\observe.png'))
         os.popen('copy "%s" "%s"' % (self.folder + r'\info.txt', self.folder + r'\backup\info.txt'))
         os.popen('copy "%s" "%s"' % (self.folder + r'\log.txt', self.folder + r'\backup\log.txt'))
-        self.rep_size = self.rep.size
+
         print('folder:', self.folder)
 
         with open(self.folder + r'\info.txt', 'r') as info:
@@ -180,13 +184,14 @@ class Worker(QThread):
             self.r_lowest_pol = np.array([float(_) for _ in temp_pol])
         print('information read')
 
+        self.rep = []
         for index in range(self.rep_size):
-            self.rep[index] = RMC4(index, self.exp, self.sig2, e0, self.S0, data_base=self.material_folder,
+            self.rep.append(RMC4(index, self.exp, self.sig2, e0, self.S0, data_base=self.material_folder,
                                    path=self.folder, init_pos=self.init_pos.copy(), init_element=self.init_element,
                                    spherical=self.spherical, random=self.random_init, local_range=self.local_range,
                                    surface=self.surface, surface_range=self.surface_range, r2chi=self.fit_space,
                                    step=self.step_min, step_range=self.step_max, ini_flag=False,
-                                   ms=self.multiscattering_en, weight=self.weight, trial=self.trial)
+                                   ms=self.multiscattering_en, weight=self.weight, trial=self.trial))
             print('replica %d created' % index)
             self.rep[index].read_result()
 
@@ -216,11 +221,8 @@ class Worker(QThread):
         self.sig_plotinfo.emit(self.chi_sum if not self.fit_space == 'r' else self.ft_sum, r_new_pol, self.ft_sum)
 
         self.r_now = r_new_pol.sum()
-        self.r_lowest = self.r_now
-        self.chi_sum_best = self.chi_sum.copy()
-
         self.sig_current.emit(self.r_now)
-        self.sig_best.emit(self.r_lowest)
+
 
     def read_inp(self, file):
         with open(file, 'r') as f:
@@ -241,7 +243,7 @@ class Worker(QThread):
                 self.sig_warning.emit('no experimental data')
                 return False
             for i in range(exp_path.size):
-                if not os.path.exists(exp_path[i]):
+                if not os.path.exists(str(exp_path[i])):
                     self.sig_warning.emit('experimental file not found')
                     return False
 
@@ -655,7 +657,12 @@ class Worker(QThread):
                 for replica in self.rep:
                     for pol in range(self.exp.size):
                         replica.table[pol].dE.update(self.E0)
+                        replica.table[pol].flush()
+                self.cal_spectrum()
                 self.flag_de_change = False
+                self.sig_time.emit(timer() - self.t_start + self.t_base)
+                continue
+
             '''rep_rf = np.array([replica.r_factor_t for replica in self.rep])
             deviate = np.where(rep_rf > np.average(rep_rf)*2)[0]
             print(np.average(rep_rf), rep_rf[deviate])
@@ -1375,6 +1382,10 @@ class MainWindow(QMainWindow, Ui_MainWindow_Pol):
 
     def de_change(self):
         self.thread.E0.update(self.Win_dE.de)
+        if self.r_aver.size > 0:
+            self.CuO_Box.setTitle('%s-%s (dE:%.1f)' % (self.thread.init_element[0], self.thread.species[0], self.thread.E0[self.thread.species[0]]))
+            if self.r_aver.size > 1:
+                self.CuS_Box.setTitle('%s-%s (dE:%.1f)' % (self.thread.init_element[0], self.thread.species[1], self.thread.E0[self.thread.species[1]]))
         if not self.thread.flag:
             for replica in self.thread.rep:
                 for pol in range(self.thread.exp.size):
