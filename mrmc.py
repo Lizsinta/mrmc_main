@@ -49,7 +49,6 @@ class Worker(QThread):
     sig_statistic = pyqtSignal(np.ndarray)
     sig_statusbar = pyqtSignal(str, int)
     sig_warning = pyqtSignal(str)
-    sig_close = pyqtSignal(bool)
 
     def __init__(self, parent=None):
         super(Worker, self).__init__(parent)
@@ -755,7 +754,6 @@ class MainWindow(QMainWindow, Ui_MainWindow_Pol):
 
         self.thread = Worker()
         self.thread.sig_warning.connect(self.warning_window)
-        self.thread.sig_close.connect(self.close_signal)
 
         self.polx = pg.PlotWidget(background=(255, 255, 255, 255))
         self.poly = pg.PlotWidget(background=(255, 255, 255, 255))
@@ -1194,8 +1192,10 @@ class MainWindow(QMainWindow, Ui_MainWindow_Pol):
                 return
             else:
                 self.cal_end(self.thread.folder)
+            self.Win_dE.close()
             event.accept()
         else:
+            self.Win_dE.close()
             event.accept()
 
     def pol_info(self, chik, factor, chiex=np.array([])):
@@ -1449,9 +1449,6 @@ class MainWindow(QMainWindow, Ui_MainWindow_Pol):
     def open_de_window(self):
         self.Win_dE.show()
 
-    def close_signal(self, a):
-        self.close()
-        self.Win_dE.close()
 
 class SubWindowDE(QMainWindow, Ui_dE):
     sig_de1 = pyqtSignal()
@@ -1516,9 +1513,13 @@ class SubWindowDE(QMainWindow, Ui_dE):
         self.sig_default.emit()
 
 
-    def closeEvent(self, a0):
-        a0.ignore()
-        self.hide_signal()
+    def closeEvent(self, a0, flag_close=False):
+        if not flag_close:
+            a0.ignore()
+            self.hide_signal()
+        else:
+            a0.accept()
+
     def hide_signal(self):
         self.hide()
 
