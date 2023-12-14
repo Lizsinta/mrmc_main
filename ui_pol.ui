@@ -580,7 +580,7 @@
      <string>option</string>
     </property>
     <addaction name="action3D_viewer"/>
-    <addaction name="action_dE"/>
+    <addaction name="action_param"/>
    </widget>
    <addaction name="menufile"/>
    <addaction name="menuoption"/>
@@ -673,9 +673,9 @@
     <string>3D viewer</string>
    </property>
   </action>
-  <action name="action_dE">
+  <action name="action_param">
    <property name="text">
-    <string>dE</string>
+    <string>fitting param</string>
    </property>
   </action>
  </widget>

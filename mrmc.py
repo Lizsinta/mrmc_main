@@ -4,7 +4,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from mrmc_package import EXP, RMC4, metropolis, Ui_MainWindow_Pol, folder_create, \
     scatter, line, init_3dplot, plot_Al2O3, plot_TiO2, fft_cut
 
-from sui_de import Ui_Form as Ui_dE
+from sui_de import Ui_Param as Ui_dE
 
 import os
 from time import perf_counter as timer
@@ -91,7 +91,7 @@ class Worker(QThread):
         sleep(0.5)
         self.rep = []
         for index in range(self.rep_size):
-            self.rep.append(RMC4(index, self.exp, self.sig2, self.E0, self.S0, data_base=self.material_folder,
+            self.rep.append(RMC4(index, self.exp, self.dw, self.E0, self.S0, data_base=self.material_folder,
                                    path=self.folder, init_pos=self.init_pos.copy(), init_element=self.init_element,
                                    spherical=self.spherical, random=self.random_init, local_range=self.local_range,
                                    surface=self.surface, surface_path=self.surface_path,
@@ -170,6 +170,8 @@ class Worker(QThread):
             for i in range(3):
                 info.readline()
             temp = info.readline().split(': ')[1].split()
+            dw = {_[0]: float(_[1]) for _ in np.char.split(np.asarray(temp, dtype=str), '=')}
+            temp = info.readline().split(': ')[1].split()
             e0 = {_[0]: float(_[1]) for _ in np.char.split(np.asarray(temp, dtype=str), '=')}
             info.readline()
             info.readline()
@@ -185,7 +187,7 @@ class Worker(QThread):
 
         self.rep = []
         for index in range(self.rep_size):
-            self.rep.append(RMC4(index, self.exp, self.sig2, e0, self.S0, data_base=self.material_folder,
+            self.rep.append(RMC4(index, self.exp, dw, e0, self.S0, data_base=self.material_folder,
                                    path=self.folder, init_pos=self.init_pos.copy(), init_element=self.init_element,
                                    spherical=self.spherical, random=self.random_init, local_range=self.local_range,
                                    surface=self.surface, surface_range=self.surface_range, r2chi=self.fit_space,
@@ -469,18 +471,31 @@ class Worker(QThread):
             else:
                 self.S0 = 1
 
-            sig2 = f.readline().split(':')
-            if sig2[0].find('SIG2') == -1:
-                self.sig_warning.emit('sig2 not found')
+            dw = f.readline().split(':')
+            if dw[0].find('DW') == -1:
+                self.sig_warning.emit('DW not found')
                 return False
-            if len(sig2) == 2:
-                try:
-                    self.sig2 = float(sig2[1])
-                except ValueError:
-                    self.sig_warning.emit('sig2 format error')
-                    return False
+            amount = self.species.size - 1 + surface_symbol.size
+            if len(dw) == 1:
+                self.sig_waring.emit(
+                    'Please set DWs for %d speices in the format element=rpath or 1 DW for all species' % amount)
+                return False
+            temp = dw[1].split()
+            if not temp[0].find('=') == -1:
+                temp = np.char.split(np.asarray(temp), '=')
+                dw = {_[0]: float(_[1]) for _ in temp}
+                for i in self.species[1:]:
+                    if not i in dw:
+                        self.sig_warning.emit('Warning: DW for %s missing' % (i))
+                        return False
+                for i in surface_symbol:
+                    if not i in dw:
+                        self.sig_warning.emit('Warning: DW for %s missing' % (i))
+                        return False
+                self.dw = dw
             else:
-                self.sig2 = 0
+                sym = np.append(self.species[1:], surface_symbol)
+                self.dw = {_[0]: float(temp[0]) for _ in sym}
 
             temp = f.readline().split(':')
             if temp[0].find('k_range') == -1:
@@ -521,7 +536,7 @@ class Worker(QThread):
             amount = self.species.size - 1 + surface_symbol.size
             if len(e0) == 1:
                 self.sig_waring.emit(
-                    'Please set ΔE for %d speices in the format element=rpath or 1 ΔE for all species' % amount)
+                    'Please set ΔEs for %d speices in the format element=rpath or 1 ΔE for all species' % amount)
                 return False
             temp = e0[1].split()
             if not temp[0].find('=') == -1:
@@ -624,8 +639,9 @@ class Worker(QThread):
         print('unique element: ', self.species)
         print('spherical coordinate:', self.spherical, '\nrandom deposition:', self.random_init,
               '\nmove pattern:', self.move_pattern)
-        print('step_min:%.3f %.3f\nstep_max:%.3f %.3f\nS0:%f\nsig2:%f' %
-              (self.step_min[0], self.step_min[1], self.step_max[0], self.step_max[1], self.S0, self.sig2))
+        print('step_min:%.3f %.3f\nstep_max:%.3f %.3f\nS0:%f' %
+              (self.step_min[0], self.step_min[1], self.step_max[0], self.step_max[1], self.S0))
+        print('σ2:', self.dw)
         print('k range:%f %f\nr range:%f %f' % (k_range[0], k_range[1], r_range[0], r_range[1]))
         print('E0:', self.E0)
         print('rpath:', self.local_range)
@@ -787,9 +803,10 @@ class MainWindow(QMainWindow, Ui_MainWindow_Pol):
         self.startButton.setEnabled(False)
         self.action_new.setEnabled(False)
         self.continueButton.setEnabled(False)
+        self.action3D_viewer.setEnabled(False)
         self.action3D_viewer.triggered.connect(self.switch_viwer)
         self.action_save_init.setEnabled(False)
-        self.action_dE.triggered.connect(self.open_de_window)
+        self.action_param.triggered.connect(self.open_de_window)
 
         self.thread.sig_plotinfo.connect(self.pol_info)
         self.thread.sig_init3d.connect(self.plot_init)
@@ -803,10 +820,13 @@ class MainWindow(QMainWindow, Ui_MainWindow_Pol):
         self.thread.sig_backup.connect(self.force_log)
         self.thread.sig_statusbar.connect(self.show_massage)
 
-        self.Win_dE.sig_de1.connect(self.de_change)
-        self.Win_dE.sig_de2.connect(self.de_change)
-        self.Win_dE.sig_de3.connect(self.de_change)
-        self.Win_dE.sig_default.connect(self.de_change)
+        self.Win_dE.sig_de1.connect(self.param_change)
+        self.Win_dE.sig_de2.connect(self.param_change)
+        self.Win_dE.sig_de3.connect(self.param_change)
+        self.Win_dE.sig_dw1.connect(self.param_change)
+        self.Win_dE.sig_dw2.connect(self.param_change)
+        self.Win_dE.sig_dw3.connect(self.param_change)
+        self.Win_dE.sig_default.connect(self.param_change)
 
     def read_inp(self):
         file_name = QFileDialog.getOpenFileName(self, 'select inp file...', os.getcwd(), '*.inp')
@@ -816,7 +836,7 @@ class MainWindow(QMainWindow, Ui_MainWindow_Pol):
         self.thread.file_inp = file_name[0].replace('/', '\\')
         if self.thread.read_inp(self.thread.file_inp):
             self.window_init()
-        self.Win_dE.init(self.thread.E0)
+        self.Win_dE.init(self.thread.E0, self.thread.dw)
         self.statusbar.showMessage('Done!', 3000)
 
     def folder_read(self):
@@ -827,8 +847,9 @@ class MainWindow(QMainWindow, Ui_MainWindow_Pol):
         self.statusbar.showMessage('Reading', 0)
         if self.thread.read_inp(self.thread.folder + r'\mrmc.inp'):
             self.window_init()
-            self.Win_dE.init(self.thread.E0)
+            self.Win_dE.init(self.thread.E0, self.thread.dw)
         if self.thread.get_folder:
+            self.action3D_viewer.setEnabled(True)
             self.Win_dE.read(self.thread.rep[0].table[0].dE)
             self.statusbar.showMessage('Done!', 3000)
             sleep(3)
@@ -943,6 +964,7 @@ class MainWindow(QMainWindow, Ui_MainWindow_Pol):
             self.thread.init()
             self.save_init()
             self.thread.flag = True
+            self.action3D_viewer.setEnabled(True)
             self.actioninp.setEnabled(False)
         self.setWindowTitle('mRMC (%s)' % self.thread.folder)
         self.thread.t_start = timer()
@@ -1056,6 +1078,9 @@ class MainWindow(QMainWindow, Ui_MainWindow_Pol):
                 info.write('%s ' % self.thread.init_element[i + 1])
             info.write('\n')
             info.write('surface: %s\n' % self.thread.surface)
+            info.write('SIG2: ')
+            for i in self.thread.dw:
+                info.write('%s=%.3f ' % (i, self.thread.dw[i]))
             info.write('dE: ')
             for i in self.thread.E0:
                 info.write('%s=%.1f ' % (i, self.thread.E0[i]))
@@ -1380,20 +1405,39 @@ class MainWindow(QMainWindow, Ui_MainWindow_Pol):
                 return
         self.statusbar.showMessage('successfully read', 3000)
 
-    def de_change(self):
-        self.thread.E0.update(self.Win_dE.de)
-        if self.r_aver.size > 0:
-            self.CuO_Box.setTitle('%s-%s (dE:%.1f)' % (self.thread.init_element[0], self.thread.species[0], self.thread.E0[self.thread.species[0]]))
-            if self.r_aver.size > 1:
-                self.CuS_Box.setTitle('%s-%s (dE:%.1f)' % (self.thread.init_element[0], self.thread.species[1], self.thread.E0[self.thread.species[1]]))
+    def param_change(self, param):
+        if param == 'de' or param == 'def':
+            self.thread.E0.update(self.Win_dE.de)
+            if self.r_aver.size > 0:
+                self.CuO_Box.setTitle('%s-%s (dE:%.1f)' % (
+                self.thread.init_element[0], self.thread.species[0], self.thread.E0[self.thread.species[0]]))
+                if self.r_aver.size > 1:
+                    self.CuS_Box.setTitle('%s-%s (dE:%.1f)' % (
+                    self.thread.init_element[0], self.thread.species[1], self.thread.E0[self.thread.species[1]]))
+        if param == 'dw' or param == 'def':
+            self.thread.dw.update(self.Win_dE.dw)
+            sig2 = [{key:np.exp(-2 * self.thread.dw[key] ** 2 * self.thread.exp[pol].k0 ** 2) for key in self.thread.dw}
+                     for pol in range(self.thread.exp.size)]
         if not self.thread.flag:
-            for replica in self.thread.rep:
-                for pol in range(self.thread.exp.size):
-                    replica.table[pol].dE.update(self.thread.E0)
-                    replica.table[pol].flush()
+            if param == 'de':
+                for replica in self.thread.rep:
+                    for pol in range(self.thread.exp.size):
+                        replica.table[pol].dE.update(self.thread.E0)
+                        replica.table[pol].flush()
+            elif param == 'dw':
+                for replica in self.thread.rep:
+                    for pol in range(self.thread.exp.size):
+                        replica.table[pol].sig2.update(sig2[pol])
+                        replica.table[pol].flush()
+            elif param == 'def':
+                for replica in self.thread.rep:
+                    for pol in range(self.thread.exp.size):
+                        replica.table[pol].dE.update(self.thread.E0)
+                        replica.table[pol].sig2.update(sig2[pol])
+                        replica.table[pol].flush()
             self.thread.cal_spectrum()
         else:
-            self.thread.flag_de_change = True
+            self.thread.flag_param_change = True
 
     def save_3d_menu(self, pos):
         target = self.sender()
@@ -1429,6 +1473,7 @@ class MainWindow(QMainWindow, Ui_MainWindow_Pol):
         self.thread.init()
         self.thread.flag = True
         self.save_init()
+        self.action3D_viewer.setEnabled(True)
         self.actioninp.setEnabled(False)
 
     def time_display(self, time):
@@ -1451,66 +1496,112 @@ class MainWindow(QMainWindow, Ui_MainWindow_Pol):
 
 
 class SubWindowDE(QMainWindow, Ui_dE):
-    sig_de1 = pyqtSignal()
-    sig_de2 = pyqtSignal()
-    sig_de3 = pyqtSignal()
-    sig_default = pyqtSignal()
+    sig_de1 = pyqtSignal(str)
+    sig_de2 = pyqtSignal(str)
+    sig_de3 = pyqtSignal(str)
+    sig_dw1 = pyqtSignal(str)
+    sig_dw2 = pyqtSignal(str)
+    sig_dw3 = pyqtSignal(str)
+    sig_default = pyqtSignal(str)
 
     def __init__(self):
         super(SubWindowDE, self).__init__()
+        self.setWindowTitle('Param')
         self.setupUi(self)
 
         self.de = {}
         self.de0 = {}
-        self.box_dict = {0: self.de1SpinBox, 1: self.de2SpinBox, 2: self.de3SpinBox}
-        for key in self.box_dict:
-            self.box_dict[key].setEnabled(False)
-        self.sig_dict = {}
+        self.dw = {}
+        self.dw0 = {}
+        self.de_box_dict = {0: self.de1SpinBox, 1: self.de2SpinBox, 2: self.de3SpinBox}
+        self.dw_box_dict = {0: self.DW1SpinBox, 1: self.DW2SpinBox, 2: self.DW3SpinBox}
+        for key in self.de_box_dict:
+            self.de_box_dict[key].setEnabled(False)
+        for key in self.dw_box_dict:
+            self.dw_box_dict[key].setEnabled(False)
+        self.de_sig_dict = {}
+        self.dw_sig_dict = {}
 
         self.closeButton.clicked.connect(self.hide_signal)
 
 
-    def init(self, de0:dict):
+    def init(self, de0:dict, dw0:dict):
         self.de = de0.copy()
         self.de0 = de0.copy()
+        self.dw = dw0.copy()
+        self.dw0 = dw0.copy()
 
         i = 0
         for key in self.de:
-            self.box_dict[i].setEnabled(True)
-            self.box_dict[i].setValue(self.de[key])
-            self.box_dict[i].valueChanged.connect(self.de_change)
-            self.sig_dict[i] = key
+            self.de_box_dict[i].setEnabled(True)
+            self.de_box_dict[i].setValue(self.de[key])
+            self.de_box_dict[i].valueChanged.connect(self.de_change)
+            self.de_sig_dict[i] = key
+            i += 1
+
+        i = 0
+        for key in self.dw:
+            self.dw_box_dict[i].setEnabled(True)
+            self.dw_box_dict[i].setValue(self.dw[key])
+            self.dw_box_dict[i].valueChanged.connect(self.dw_change)
+            self.dw_sig_dict[i] = key
             i += 1
 
         self.defaultButton.clicked.connect(self.set_default)
 
-    def read(self, de:dict):
+    def read(self, de:dict, dw:dict):
         self.de.update(de)
         i = 0
         for key in self.de0:
-            self.box_dict[i].setValue(self.de[key])
+            self.de_box_dict[i].setValue(self.de[key])
+            i += 1
+
+        self.dw.update(dw)
+        i = 0
+        for key in self.dw0:
+            self.dw_box_dict[i].setValue(self.dw[key])
             i += 1
 
     def de_change(self):
         signal = self.sender()
         if signal.hasFocus():
             if signal.objectName() == 'de1SpinBox':
-                self.de[self.sig_dict[0]] = signal.value()
-                self.sig_de1.emit()
+                self.de[self.de_sig_dict[0]] = signal.value()
+                self.sig_de1.emit('de')
             elif signal.objectName() == 'de2SpinBox':
-                self.de[self.sig_dict[1]] = signal.value()
-                self.sig_de2.emit()
+                self.de[self.de_sig_dict[1]] = signal.value()
+                self.sig_de2.emit('de')
             elif signal.objectName() == 'de3SpinBox':
-                self.de[self.sig_dict[2]] = signal.value()
-                self.sig_de3.emit()
+                self.de[self.de_sig_dict[2]] = signal.value()
+                self.sig_de3.emit('de')
+
+    def dw_change(self):
+        signal = self.sender()
+        if signal.hasFocus():
+            if signal.objectName() == 'DW1SpinBox':
+                self.dw[self.dw_sig_dict[0]] = signal.value()
+                self.sig_dw1.emit('dw')
+            elif signal.objectName() == 'DW2SpinBox':
+                self.dw[self.dw_sig_dict[1]] = signal.value()
+                self.sig_dw2.emit('dw')
+            elif signal.objectName() == 'DW3SpinBox':
+                self.dw[self.dw_sig_dict[2]] = signal.value()
+                self.sig_dw3.emit('dw')
 
     def set_default(self):
         i = 0
         for key in self.de0:
-            self.box_dict[i].setValue(self.de0[key])
+            self.de_box_dict[i].setValue(self.de0[key])
             i += 1
         self.de.update(self.de0)
-        self.sig_default.emit()
+
+        i = 0
+        for key in self.dw0:
+            self.dw_box_dict[i].setValue(self.dw0[key])
+            i += 1
+        self.dw.update(self.dw0)
+
+        self.sig_default.emit('def')
 
 
     def closeEvent(self, a0, flag_close=False):

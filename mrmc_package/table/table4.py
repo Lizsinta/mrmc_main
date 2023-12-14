@@ -5,7 +5,7 @@ from scipy.special import comb
 
 
 class TABLE_POL:
-    def __init__(self, k_head, k_tail, r_head, r_tail, sig2, dE, s02, k0, coor, element,
+    def __init__(self, k_head, k_tail, r_head, r_tail, dw, dE, s02, k0, coor, element,
                  folder, polarization=-1, ms_en=False, weight=3):
         self.k0 = k0
         self.k_head = k_head
@@ -15,7 +15,7 @@ class TABLE_POL:
         self.element = element
         self.coordinate = coor
         self.distance = np.array([sqrt((_ ** 2).sum()) for _ in coor])
-        self.sig2 = np.exp(2 * sig2 * k0 ** 2)
+        self.sig2 = {key:np.exp(-2 * dw[key] ** 2 * k0 ** 2) for key in dw}
         self.dE = dE
         self.s02 = s02
         self.folder = folder
@@ -86,6 +86,7 @@ class TABLE_POL:
         file = self.folder + r'\table2_%d' % (symbol + 1)
         table = self.single[symbol]
         de = self.dE[self.element[target]]
+        sig2 = self.sig2[self.element[target]]
         if self.distance[target] < self.length[-1]:
             try:
                 index = np.where(self.length == round(self.distance[target], self.decimals))[0][0]
@@ -113,7 +114,7 @@ class TABLE_POL:
                 polar = 1
             chi0 = np.multiply(np.multiply(np.multiply(
                 np.sin(2 * self.distance[target] * self.k0 + table[index].phase),
-                np.exp(-2 * self.distance[target] * table[index].lamb)), self.sig2),
+                np.exp(-2 * self.distance[target] * table[index].lamb)), sig2),
                 table[index].amp) / (self.distance[target] ** 2) * polar
             self.chi_1st[target] = deltaE_shift(self.k0, chi0, de)
         else:
@@ -128,6 +129,7 @@ class TABLE_POL:
         file = self.folder + r'\table2s_%d' % (symbol+1)
         table = self.single[symbol]
         de = self.dE[self.element[target]]
+        sig2 = self.sig2[self.element[target]]
         if self.distance[target] < self.length[-1] / 2:
             index = np.where(self.length == round(self.distance[target], self.decimals))[0][0]
             if not type(table[index]) == FEFF:
@@ -142,7 +144,7 @@ class TABLE_POL:
                           self.coordinate[0][self.pol]) / self.distance[target]) ** 2 if self.pol >= 0 else 1
             chi0 = np.multiply(np.multiply(np.multiply(
                 np.sin(2 * rpath * self.k0 + table[index].phase),
-                np.exp(-2 * rpath * table[index].lamb)), self.sig2),
+                np.exp(-2 * rpath * table[index].lamb)), sig2),
                 table[index].amp) / (rpath ** 2) * polar
             self.chi_commute[target] = deltaE_shift(self.k0, chi0, de)
         else:
@@ -169,6 +171,7 @@ class TABLE_POL:
         file3rd = self.folder + r'\table4_%d_%d' % (symbol[0] + 1, symbol[1] + 1)
         table3rd = self.triple[int(symbol.sum()) - 2]
         de = self.dE[self.element[step1]]
+        sig2 = self.sig2[self.element[step1]]
         d_vector = sqrt(((self.coordinate[step2] - self.coordinate[step1]) ** 2).sum())
         if round(self.distance[step1], self.decimals) > self.length[-1] or \
                 round(d_vector, self.decimals) > self.length[-1]:
@@ -203,7 +206,7 @@ class TABLE_POL:
             self.log_2nd[step1][step2] = 1
             chi0 = np.multiply(np.multiply(np.multiply(
                 np.sin(2 * rpath_dou * self.k0 + table2nd[index].phase),
-                np.exp(-2 * rpath_dou * table2nd[index].lamb)), self.sig2),
+                np.exp(-2 * rpath_dou * table2nd[index].lamb)),sig2),
                 table2nd[index].amp) / (rpath_dou ** 2) * (polar_1 + polar_2)
             self.chi_2nd[step1][step2] = deltaE_shift(self.k0, chi0, de)
         else:
@@ -217,7 +220,7 @@ class TABLE_POL:
             self.log_3rd[step1][step2] = 1
             chi0 = np.multiply(np.multiply(np.multiply(
                 np.sin(2 * rpath_tri * self.k0 + table3rd[index].phase),
-                np.exp(-2 * rpath_tri * table3rd[index].lamb)), self.sig2),
+                np.exp(-2 * rpath_tri * table3rd[index].lamb)), ig2),
                 table3rd[index].amp) / (rpath_tri ** 2) * (polar_1 + polar_2)
             self.chi_3rd[step1][step2] = deltaE_shift(self.k0, chi0, de)
         else:

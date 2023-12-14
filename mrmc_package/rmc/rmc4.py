@@ -6,14 +6,14 @@ import os
 import numpy as np
 
 class RMC4:
-    def __init__(self, index, exp, sig2, energy, s02, data_base, path, init_pos=np.array([]), init_element=np.array([]),
+    def __init__(self, index, exp, dw, energy, s02, data_base, path, init_pos=np.array([]), init_element=np.array([]),
                  spherical=True, random=True, local_range=np.array([]), surface='', surface_path='',
                  surface_range=np.array([]), r2chi=True, step=np.array([]), step_range=np.array([]),
                  ini_flag=True, ms=False, weight=3, trial=np.array([])):
         self.index = index
 
         self.path = path
-        self.sig2 = sig2
+        self.dw = dw
         self.s02 = s02
         self.energy = energy
         self.exp = exp
@@ -48,14 +48,14 @@ class RMC4:
             pol = np.array([-1])
         if self.feff == 'table':
             self.table = np.array([TABLE_POL(self.exp[i].k_start, self.exp[i].k_end, self.exp[i].r_start,
-                                             self.exp[i].r_end, self.sig2, self.energy, self.s02, self.exp[i].k0,
+                                             self.exp[i].r_end, self.dw, self.energy, self.s02, self.exp[i].k0,
                                              self.cell.coordinate.copy(), self.cell.element.copy(), self.data_base,
                                              pol[i], ms_en=self.ms, weight=self.weight) for i in range(pol.size)])
         elif self.feff == 'larch':
             if not os.path.exists(self.data_base + r'\%d' % self.index):
                 os.makedirs(self.data_base + r'\%d' % self.index)
             self.table = np.array([TABLE_LARCH(self.exp[i].k_start, self.exp[i].k_end, self.exp[i].r_start,
-                                               self.exp[i].r_end, self.sig2, self.energy[0], self.s02, self.exp[i].k0,
+                                               self.exp[i].r_end, self.dw, self.energy[0], self.s02, self.exp[i].k0,
                                                self.cell.coordinate, self.cell.element,
                                                self.data_base + r'\%d\%d' % (self.index, i), pol[i], ms_en=self.ms,
                                                weight=self.weight) for i in range(pol.size)])
@@ -199,7 +199,7 @@ class RMC4:
         else:
             pol = np.array([-1])
         self.table = np.array([TABLE_POL(self.exp[i].k_start, self.exp[i].k_end, self.exp[i].r_start,
-                                         self.exp[i].r_end, self.sig2, self.energy, self.s02, self.exp[i].k0,
+                                         self.exp[i].r_end, self.dw, self.energy, self.s02, self.exp[i].k0,
                                          self.cell.coordinate.copy(), self.cell.element.copy(), self.data_base,
                                          pol[i], ms_en=self.ms, weight=self.weight) for i in range(pol.size)])
         print('table set up')
