@@ -582,6 +582,10 @@ class ATOMS:
             if np.min(distance) > self.local_range[self.element[target]] or np.min(distance) < self.min_distance:
                 trials -= 1
                 continue
+            '''if self.c_temp.shape[0] > 3 and self.element[3] == 'O':
+                if not (2.80 < sqrt(((self.c_temp[2] - self.c_temp[3]) ** 2).sum()) < 3):
+                    trials -= 1
+                    continue'''
             self.distance[target] = sqrt((self.c_temp[target] ** 2).sum())
             break
         flag = True if trials == 0 else False

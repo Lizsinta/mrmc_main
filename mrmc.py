@@ -22,11 +22,11 @@ import pyqtgraph as pg
 from matplotlib import use
 from sys import argv, exit
 import icon_rc
+
 use('Qt5Agg')
 
 
-
-def chi_average(input_array:list, size=3):
+def chi_average(input_array: list, size=3):
     chi_sum = np.zeros((size, input_array[0].exp[0].k.size))
     for pol in range(size):
         for index in range(len(input_array)):
@@ -66,7 +66,6 @@ class Worker(QThread):
         self.backup_count = 2000
         self.fit_space = 'x'
 
-
         self.chi_sum = np.array([])
         self.chi_sum_best = np.array([])
         self.ft_sum = np.array([])
@@ -80,8 +79,6 @@ class Worker(QThread):
         self.surface_path = ''
         self.local_range = {}
 
-
-
     def init(self):
         self.folder = folder_create(self.simulation_name)
         os.makedirs(self.folder + r'\result')
@@ -92,12 +89,12 @@ class Worker(QThread):
         self.rep = []
         for index in range(self.rep_size):
             self.rep.append(RMC4(index, self.exp, self.dw, self.E0, self.S0, data_base=self.material_folder,
-                                   path=self.folder, init_pos=self.init_pos.copy(), init_element=self.init_element,
-                                   spherical=self.spherical, random=self.random_init, local_range=self.local_range,
-                                   surface=self.surface, surface_path=self.surface_path,
-                                   surface_range=self.surface_range, r2chi=self.fit_space, step=self.step_min,
-                                   step_range=self.step_max, ini_flag=True, ms=self.multiscattering_en,
-                                   weight=self.weight, trial=self.trial))
+                                 path=self.folder, init_pos=self.init_pos.copy(), init_element=self.init_element,
+                                 spherical=self.spherical, random=self.random_init, local_range=self.local_range,
+                                 surface=self.surface, surface_path=self.surface_path,
+                                 surface_range=self.surface_range, r2chi=self.fit_space, step=self.step_min,
+                                 step_range=self.step_max, ini_flag=True, ms=self.multiscattering_en,
+                                 weight=self.weight, trial=self.trial))
             self.rep[index].table_init()
         print('replica created')
         with open(self.folder + r'/model.dat', 'w') as f:
@@ -171,7 +168,7 @@ class Worker(QThread):
                 elif surface == 'Al2O3':
                     sym = np.append(sym, np.array(['O', 'Al']))
             temp = info.readline().split(': ')
-            if not temp[0].find('dw') == -1:
+            if not temp[0].find('dw') == -1 or not temp[0].find('SIG2') == -1:
                 if not temp[1].find('=') == -1:
                     dw = {_[0]: float(_[1]) for _ in np.char.split(np.asarray(temp[1].split(), dtype=str), '=')}
                 else:
@@ -195,11 +192,11 @@ class Worker(QThread):
         self.rep = []
         for index in range(self.rep_size):
             self.rep.append(RMC4(index, self.exp, dw, e0, self.S0, data_base=self.material_folder,
-                                   path=self.folder, init_pos=self.init_pos.copy(), init_element=self.init_element,
-                                   spherical=self.spherical, random=self.random_init, local_range=self.local_range,
-                                   surface=self.surface, surface_range=self.surface_range, r2chi=self.fit_space,
-                                   step=self.step_min, step_range=self.step_max, ini_flag=False,
-                                   ms=self.multiscattering_en, weight=self.weight, trial=self.trial))
+                                 path=self.folder, init_pos=self.init_pos.copy(), init_element=self.init_element,
+                                 spherical=self.spherical, random=self.random_init, local_range=self.local_range,
+                                 surface=self.surface, surface_range=self.surface_range, r2chi=self.fit_space,
+                                 step=self.step_min, step_range=self.step_max, ini_flag=False,
+                                 ms=self.multiscattering_en, weight=self.weight, trial=self.trial))
             print('replica %d created' % index)
             self.rep[index].read_result()
 
@@ -231,7 +228,6 @@ class Worker(QThread):
 
         self.r_now = r_new_pol.sum()
         self.sig_current.emit(self.r_now)
-
 
     def read_inp(self, file):
         with open(file, 'r') as f:
@@ -365,9 +361,9 @@ class Worker(QThread):
             self.species = self.init_element[np.unique(self.init_element, return_index=True)[1]]
             self.init_element = np.append(celement, self.init_element)
             print(self.species, self.init_element)
-            print(self.init_eledex)
             if self.init_eledex.size < self.init_element.size:
-                self.init_eledex = np.unique(self.init_element, return_inverse=True)[1]
+                self.init_eledex = np.append(0, np.unique(self.init_element[1:], return_inverse=True)[1] + 1)
+            print(self.init_eledex)
             self.init_pos = np.reshape(self.init_pos, (self.init_element.size, 3))
 
             spherical = f.readline().split(':')
@@ -384,23 +380,25 @@ class Worker(QThread):
                 return False
 
             satellite = f.readline().split(':')
-            if spherical[0].find('satellite_coordinate') == -1:
-                self.sig_warning.emit('satellite coordinate format line missing')
-                return False
-            if not self.surface == '':
-                temp = satellite[1].strip()
-                if temp == 'True' or temp == 'true' or temp == '1' or temp == 'absolute':
-                    if not self.spherical:
-                        self.init_pos[1:] = self.init_pos[1:] - self.init_pos[0]
+            if satellite[0].find('satellite_coordinate') == -1:
+                #self.sig_warning.emit('satellite coordinate format line missing')
+                #return False
+                random = satellite
+            else:
+                if not self.surface == '':
+                    temp = satellite[1].strip()
+                    if temp == 'True' or temp == 'true' or temp == '1' or temp == 'absolute':
+                        if not self.spherical:
+                            self.init_pos[1:] = self.init_pos[1:] - self.init_pos[0]
+                        else:
+                            self.sig_warning.emit('surface simulation do not support absolute spherical '
+                                                  'coordinates for satellite atoms')
+                            return False
                     else:
-                        self.sig_warning.emit('surface simulation do not support absolute spherical '
-                                              'corrdinates for satellite atoms')
+                        self.sig_warning.emit('coordinate system parameter error')
                         return False
-                else:
-                    self.sig_warning.emit('coordinate system parameter error')
-                    return False
 
-            random = f.readline().split(':')
+                random = f.readline().split(':')
             if random[0].find('random_deposition') == -1:
                 self.sig_warning.emit('random_deposition line missing')
                 return False
@@ -503,7 +501,7 @@ class Worker(QThread):
             amount = self.species.size + surface_symbol.size
             if len(dw) == 1:
                 self.sig_waring.emit(
-                    'Please set DWs for %d speices in the format element=rpath or 1 DW for all species' % amount)
+                    'Please set DWs for %d species in the format element=rpath or 1 DW for all species' % amount)
                 return False
             temp = dw[1].split()
             if not temp[0].find('=') == -1:
@@ -561,7 +559,7 @@ class Worker(QThread):
             amount = self.species.size + surface_symbol.size
             if len(e0) == 1:
                 self.sig_waring.emit(
-                    'Please set ΔEs for %d speices in the format element=rpath or 1 ΔE for all species' % amount)
+                    'Please set ΔEs for %d species in the format element=rpath or 1 ΔE for all species' % amount)
                 return False
             temp = e0[1].split()
             if not temp[0].find('=') == -1:
@@ -578,7 +576,7 @@ class Worker(QThread):
                 self.E0 = de
             else:
                 sym = np.append(self.species, surface_symbol)
-                self.E0 = {_[0]:float(temp[0]) for _ in sym}
+                self.E0 = {_[0]: float(temp[0]) for _ in sym}
 
             rpath = f.readline().split(':')
             if rpath[0].find('rpath') == -1:
@@ -586,7 +584,8 @@ class Worker(QThread):
                 return False
             amount = self.species.size + surface_symbol.size
             if len(rpath) == 1:
-                self.sig_waring.emit('Please set rpath for %d speices in the format element=rpath or 1 rpath for all species' % amount)
+                self.sig_waring.emit(
+                    'Please set rpath for %d speices in the format element=rpath or 1 rpath for all species' % amount)
                 return False
             if not rpath[1].find('=') == -1:
                 temp = np.char.split(np.asarray(rpath[1].split()), '=')
@@ -688,7 +687,7 @@ class Worker(QThread):
     def run(self):
         self.sig_statusbar.emit('Running', 0)
         trials = np.zeros(self.rep_size)
-        #executor = ThreadPoolExecutor(4)
+        # executor = ThreadPoolExecutor(4)
         while True:
             if self.step_count % self.backup_count == 0:
                 self.sig_backup.emit(True)
@@ -873,9 +872,18 @@ class MainWindow(QMainWindow, Ui_MainWindow_Pol):
         if self.thread.read_inp(self.thread.folder + r'\mrmc.inp'):
             self.window_init()
             self.Win_dE.init(self.thread.E0, self.thread.dw)
+        else:
+            self.statusbar.showMessage('Error!', 3000)
+            return
         if self.thread.get_folder:
             self.action3D_viewer.setEnabled(True)
             self.Win_dE.read(self.thread.rep[0].table[0].dE, self.thread.rep[0].table[0].dE)
+            if self.r_aver.size > 0:
+                self.CuO_Box.setTitle('%s-%s (dE:%.1f)' % (
+                    self.thread.init_element[0], self.thread.species[0], self.thread.rep[0].table[0].dE[self.thread.species[0]]))
+                if self.r_aver.size > 1:
+                    self.CuS_Box.setTitle('%s-%s (dE:%.1f)' % (
+                        self.thread.init_element[0], self.thread.species[1], self.thread.rep[0].table[0].dE[self.thread.species[1]]))
             self.statusbar.showMessage('Done!', 3000)
             sleep(3)
             self.startButton.setEnabled(True)
@@ -891,14 +899,14 @@ class MainWindow(QMainWindow, Ui_MainWindow_Pol):
                 self.plot[i].removeItem(self.line_exp[i])
             if self.thread.fit_space == 'x':
                 for i in range(len(self.plotex)):
-                    self.plotex[i].removeItem(self.line_exp[i+len(self.plotex)])
+                    self.plotex[i].removeItem(self.line_exp[i + len(self.plotex)])
             if len(self.plotex) > 0 and not self.thread.fit_space == 'x':
                 for i in range(3):
                     self.layoutxyz[i].removeWidget(self.plotex[i])
 
         if self.thread.fit_space == 'x':
             for i in range(3):
-                self.layoutxyz[i].addWidget(self.polxyz[i+3])
+                self.layoutxyz[i].addWidget(self.polxyz[i + 3])
         if self.thread.exp.size == 3:
             title = ['Polarization [001]', 'Polarization [1-10]', 'Polarization [110]']
         elif self.thread.exp.size == 2:
@@ -908,7 +916,7 @@ class MainWindow(QMainWindow, Ui_MainWindow_Pol):
         for i in range(3):
             self.polxyz[i].setTitle(title[i], color='#000000', size='18pt')
             if self.thread.fit_space == 'x':
-                self.polxyz[i+3].setTitle(title[i], color='#000000', size='18pt')
+                self.polxyz[i + 3].setTitle(title[i], color='#000000', size='18pt')
         if self.thread.exp.size == 3:
             self.plot = {0: self.polx, 1: self.poly, 2: self.polz}
             if self.thread.fit_space == 'x':
@@ -943,12 +951,12 @@ class MainWindow(QMainWindow, Ui_MainWindow_Pol):
             self.polxyz[i].getAxis('bottom').setTextPen('black')
             self.layoutxyz[i].addWidget(self.polxyz[i])
             if self.thread.fit_space == 'x':
-                self.polxyz[i+3].setLabel('left', 'FT')
-                self.polxyz[i+3].setLabel('bottom', 'R')
-                self.polxyz[i+3].getAxis('left').setTickFont(fn)
-                self.polxyz[i+3].getAxis('left').setTextPen('black')
-                self.polxyz[i+3].getAxis('bottom').setTickFont(fn)
-                self.polxyz[i+3].getAxis('bottom').setTextPen('black')
+                self.polxyz[i + 3].setLabel('left', 'FT')
+                self.polxyz[i + 3].setLabel('bottom', 'R')
+                self.polxyz[i + 3].getAxis('left').setTickFont(fn)
+                self.polxyz[i + 3].getAxis('left').setTextPen('black')
+                self.polxyz[i + 3].getAxis('bottom').setTickFont(fn)
+                self.polxyz[i + 3].getAxis('bottom').setTextPen('black')
 
         if not self.thread.fit_space == 'r':
             self.line_exp = np.array([line(self.thread.exp[_].k, self.thread.exp[_].chi, c='black', width=3)
@@ -970,9 +978,11 @@ class MainWindow(QMainWindow, Ui_MainWindow_Pol):
         self.c2 = np.zeros(self.thread.species.size)
         self.c3 = np.zeros(self.thread.species.size)
         if self.r_aver.size > 0:
-            self.CuO_Box.setTitle('%s-%s (dE:%.1f)' % (self.thread.init_element[0], self.thread.species[0], self.thread.E0[self.thread.species[0]]))
+            self.CuO_Box.setTitle('%s-%s (dE:%.1f)' % (
+            self.thread.init_element[0], self.thread.species[0], self.thread.E0[self.thread.species[0]]))
             if self.r_aver.size > 1:
-                self.CuS_Box.setTitle('%s-%s (dE:%.1f)' % (self.thread.init_element[0], self.thread.species[1], self.thread.E0[self.thread.species[1]]))
+                self.CuS_Box.setTitle('%s-%s (dE:%.1f)' % (
+                self.thread.init_element[0], self.thread.species[1], self.thread.E0[self.thread.species[1]]))
             else:
                 self.CuS_Box.setTitle('Null')
         else:
@@ -1032,6 +1042,7 @@ class MainWindow(QMainWindow, Ui_MainWindow_Pol):
                             f.write('\n')
                             for xi in range(replica.table[pol].k.size):
                                 f.write('%f %f\n' % (replica.table[pol].k[xi], replica.table[pol].chi[xi]))
+
                             f.write('\n')
             print('log data wrote')
             self.write_model()
@@ -1069,7 +1080,7 @@ class MainWindow(QMainWindow, Ui_MainWindow_Pol):
             fig = self.graphWidget.grab()
             fig.save(folder + r'\observe.png', 'PNG')
             if self.thread.flag_viwer:
-                image = np.transpose(self.model.renderToArray((1000, 1000)))
+                image = self.model.renderToArray((1000, 1000)).transpose((1, 0, 2))
                 pg.makeQImage(image).save(folder + r'\model.png')
             self.statusbar.showMessage('Done!', 3000)
             self.continueButton.setEnabled(True)
@@ -1080,7 +1091,6 @@ class MainWindow(QMainWindow, Ui_MainWindow_Pol):
             os.makedirs(f_init)
         self.cal_end(f_init)
         os.popen('copy "%s" "%s"' % (self.thread.file_inp, f_init + r'\mrmc.inp'))
-
 
     def force_log(self):
         self.statusbar.showMessage('backup...', 0)
@@ -1277,8 +1287,10 @@ class MainWindow(QMainWindow, Ui_MainWindow_Pol):
                     self.line_chi[i].setData(x=self.thread.exp[i].r_cut, y=chik[i])
 
         for i in range(self.r_aver.size):
-            dist = np.array([replica.cell.distance[1:][np.where(replica.cell.element[1:] == self.thread.species[i])[0]] for replica in
-                             self.thread.rep]).ravel()
+            dist = np.array(
+                [replica.cell.distance[1:][np.where(replica.cell.element[1:] == self.thread.species[i])[0]] for replica
+                 in
+                 self.thread.rep]).ravel()
             self.r_aver[i] = dist.mean()
             self.c2[i] = dist.var()
             self.c3[i] = ((dist - self.r_aver[i]) ** 3).mean()
@@ -1352,7 +1364,7 @@ class MainWindow(QMainWindow, Ui_MainWindow_Pol):
         self.model.customContextMenuRequested.connect(self.save_3d_menu)
         self.scatter = np.array([])
         self.bond = np.array([])
-        
+
         if not self.thread.surface == '':
             init_3dplot(self.model, grid=False, view=40, title='model')  # set initial view distance by "view"
             if self.thread.surface == 'TiO2':
@@ -1376,7 +1388,6 @@ class MainWindow(QMainWindow, Ui_MainWindow_Pol):
             self.model.addItem(line([0, 0], [-5, 5], [0, 0], c='green', width=3))
             self.model.addItem(line([0, 0], [0, 0], [-5, 5], c='blue', width=3))
 
-
             for replica in self.thread.rep:
                 for i in range(1, replica.cell.local_size):
                     self.scatter = np.append(self.scatter, scatter(replica.cell.coordinate[i][0],
@@ -1391,7 +1402,7 @@ class MainWindow(QMainWindow, Ui_MainWindow_Pol):
         self.scatter[where][target].translate(position[0], position[1], position[2])
 
     def plot_3D_center(self, where, target, position):
-        self.scatter[where][target-1].translate(position[0], position[1], position[2])
+        self.scatter[where][target - 1].translate(position[0], position[1], position[2])
 
     def plot_3D_event(self, where, target, position):
         if self.thread.flag_viwer:
@@ -1436,14 +1447,15 @@ class MainWindow(QMainWindow, Ui_MainWindow_Pol):
             self.thread.E0.update(self.Win_dE.de)
             if self.r_aver.size > 0:
                 self.CuO_Box.setTitle('%s-%s (dE:%.1f)' % (
-                self.thread.init_element[0], self.thread.species[0], self.thread.E0[self.thread.species[0]]))
+                    self.thread.init_element[0], self.thread.species[0], self.thread.E0[self.thread.species[0]]))
                 if self.r_aver.size > 1:
                     self.CuS_Box.setTitle('%s-%s (dE:%.1f)' % (
-                    self.thread.init_element[0], self.thread.species[1], self.thread.E0[self.thread.species[1]]))
+                        self.thread.init_element[0], self.thread.species[1], self.thread.E0[self.thread.species[1]]))
         if param == 'dw' or param == 'def':
             self.thread.dw.update(self.Win_dE.dw)
-            sig2 = [{key:np.exp(-2 * self.thread.dw[key] ** 2 * self.thread.exp[pol].k0 ** 2) for key in self.thread.dw}
-                     for pol in range(self.thread.exp.size)]
+            sig2 = [
+                {key: np.exp(-2 * self.thread.dw[key] ** 2 * self.thread.exp[pol].k0 ** 2) for key in self.thread.dw}
+                for pol in range(self.thread.exp.size)]
         if not self.thread.flag:
             if param == 'de':
                 for replica in self.thread.rep:
@@ -1552,8 +1564,7 @@ class SubWindowDE(QMainWindow, Ui_dE):
 
         self.closeButton.clicked.connect(self.hide_signal)
 
-
-    def init(self, de0:dict, dw0:dict):
+    def init(self, de0: dict, dw0: dict):
         self.de = de0.copy()
         self.de0 = de0.copy()
         self.dw = dw0.copy()
@@ -1577,7 +1588,7 @@ class SubWindowDE(QMainWindow, Ui_dE):
 
         self.defaultButton.clicked.connect(self.set_default)
 
-    def read(self, de:dict, dw:dict):
+    def read(self, de: dict, dw: dict):
         self.de.update(de)
         i = 0
         for key in self.de0:
@@ -1631,7 +1642,6 @@ class SubWindowDE(QMainWindow, Ui_dE):
 
         self.sig_default.emit('def')
 
-
     def closeEvent(self, a0, flag_close=False):
         if not flag_close:
             a0.ignore()
@@ -1643,11 +1653,8 @@ class SubWindowDE(QMainWindow, Ui_dE):
         self.hide()
 
 
-
-
 if __name__ == '__main__':
     app = QApplication(argv)
     main = MainWindow()
     main.show()
     exit(app.exec_())
-
