@@ -161,18 +161,25 @@ class Worker(QThread):
         print('folder:', self.folder)
 
         with open(self.folder + r'\info.txt', 'r') as info:
-            '''self.init_element = np.array([info.readline().split()[1]])
-            self.init_element = np.append(self.init_element, np.asarray(info.readline().split()[1:]))
-            self.init_pos = np.zeros((self.init_element.size, 3))
+            info.readline()
+            sym = np.unique(np.array([info.readline().split()[1:]]))
             temp = info.readline().split()
-            self.surface = temp[1] if len(temp) > 1 else ''
-            self.E0 = [float(_) for _ in info.readline().split()[1:]]'''
-            for i in range(3):
-                info.readline()
-            temp = info.readline().split(': ')[1].split()
-            dw = {_[0]: float(_[1]) for _ in np.char.split(np.asarray(temp, dtype=str), '=')}
-            temp = info.readline().split(': ')[1].split()
-            e0 = {_[0]: float(_[1]) for _ in np.char.split(np.asarray(temp, dtype=str), '=')}
+            surface = temp[1] if len(temp) > 1 else ''
+            if not surface == '':
+                if surface == 'TiO2':
+                    sym = np.append(sym, np.array(['O', 'Ti']))
+                elif surface == 'Al2O3':
+                    sym = np.append(sym, np.array(['O', 'Al']))
+            temp = info.readline().split(': ')
+            if not temp[0].find('dw') == -1:
+                if not temp[1].find('=') == -1:
+                    dw = {_[0]: float(_[1]) for _ in np.char.split(np.asarray(temp[1].split(), dtype=str), '=')}
+                else:
+                    dw = {_: float(temp[1].split()[0]) for _ in sym}
+                temp = info.readline().split(': ')
+            else:
+                dw = {_: 0.0 for _ in sym}
+            e0 = {_[0]: float(_[1]) for _ in np.char.split(np.asarray(temp[1].split(), dtype=str), '=')}
             info.readline()
             info.readline()
             self.step_count = int(info.readline().split()[1])
@@ -199,6 +206,7 @@ class Worker(QThread):
         self.sig_step.emit(self.step_count)
         self.sig_time.emit(self.t_base)
         self.sig_tau.emit(self.tau_t, self.tau_i)
+        self.sig_best.emit(self.r_lowest)
         self.tau_ratio = self.tau_i / self.tau_t
         self.cal_spectrum()
         if self.flag_viwer:
@@ -375,6 +383,23 @@ class Worker(QThread):
                 self.sig_warning.emit('coordinate system parameter error')
                 return False
 
+            satellite = f.readline().split(':')
+            if spherical[0].find('satellite_coordinate') == -1:
+                self.sig_warning.emit('satellite coordinate format line missing')
+                return False
+            if not self.surface == '':
+                temp = satellite[1].strip()
+                if temp == 'True' or temp == 'true' or temp == '1' or temp == 'absolute':
+                    if not self.spherical:
+                        self.init_pos[1:] = self.init_pos[1:] - self.init_pos[0]
+                    else:
+                        self.sig_warning.emit('surface simulation do not support absolute spherical '
+                                              'corrdinates for satellite atoms')
+                        return False
+                else:
+                    self.sig_warning.emit('coordinate system parameter error')
+                    return False
+
             random = f.readline().split(':')
             if random[0].find('random_deposition') == -1:
                 self.sig_warning.emit('random_deposition line missing')
@@ -472,10 +497,10 @@ class Worker(QThread):
                 self.S0 = 1
 
             dw = f.readline().split(':')
-            if dw[0].find('DW') == -1:
+            if dw[0].find('DW') == -1 and dw[0].find('SIG2') == -1:
                 self.sig_warning.emit('DW not found')
                 return False
-            amount = self.species.size - 1 + surface_symbol.size
+            amount = self.species.size + surface_symbol.size
             if len(dw) == 1:
                 self.sig_waring.emit(
                     'Please set DWs for %d speices in the format element=rpath or 1 DW for all species' % amount)
@@ -484,7 +509,7 @@ class Worker(QThread):
             if not temp[0].find('=') == -1:
                 temp = np.char.split(np.asarray(temp), '=')
                 dw = {_[0]: float(_[1]) for _ in temp}
-                for i in self.species[1:]:
+                for i in self.species:
                     if not i in dw:
                         self.sig_warning.emit('Warning: DW for %s missing' % (i))
                         return False
@@ -494,8 +519,8 @@ class Worker(QThread):
                         return False
                 self.dw = dw
             else:
-                sym = np.append(self.species[1:], surface_symbol)
-                self.dw = {_[0]: float(temp[0]) for _ in sym}
+                sym = np.append(self.species, surface_symbol)
+                self.dw = {_: float(temp[0]) for _ in sym}
 
             temp = f.readline().split(':')
             if temp[0].find('k_range') == -1:
@@ -533,7 +558,7 @@ class Worker(QThread):
             if e0[0].find('delta_E') == -1:
                 self.sig_warning.emit('ΔE not found')
                 return False
-            amount = self.species.size - 1 + surface_symbol.size
+            amount = self.species.size + surface_symbol.size
             if len(e0) == 1:
                 self.sig_waring.emit(
                     'Please set ΔEs for %d speices in the format element=rpath or 1 ΔE for all species' % amount)
@@ -542,7 +567,7 @@ class Worker(QThread):
             if not temp[0].find('=') == -1:
                 temp = np.char.split(np.asarray(temp), '=')
                 de = {_[0]: float(_[1]) for _ in temp}
-                for i in self.species[1:]:
+                for i in self.species:
                     if not i in de:
                         self.sig_warning.emit('Warning: E0 for %s missing' % (i))
                         return False
@@ -552,21 +577,21 @@ class Worker(QThread):
                         return False
                 self.E0 = de
             else:
-                sym = np.append(self.species[1:], surface_symbol)
+                sym = np.append(self.species, surface_symbol)
                 self.E0 = {_[0]:float(temp[0]) for _ in sym}
 
             rpath = f.readline().split(':')
             if rpath[0].find('rpath') == -1:
                 self.sig_warning.emit('rpath not found')
                 return False
-            amount = self.species.size - 1 + surface_symbol.size
+            amount = self.species.size + surface_symbol.size
             if len(rpath) == 1:
                 self.sig_waring.emit('Please set rpath for %d speices in the format element=rpath or 1 rpath for all species' % amount)
                 return False
             if not rpath[1].find('=') == -1:
                 temp = np.char.split(np.asarray(rpath[1].split()), '=')
                 rpath = {_[0]: float(_[1]) for _ in temp}
-                for i in self.species[1:]:
+                for i in self.species:
                     if not i in rpath:
                         self.sig_warning.emit('Warning: rapth for %s missing' % (i))
                         return False
@@ -576,7 +601,7 @@ class Worker(QThread):
                         return False
                 self.local_range = rpath
             else:
-                sym = np.append(self.species[1:], surface_symbol)
+                sym = np.append(self.species, surface_symbol)
                 self.local_range = {_[0]: float(rpath[1]) for _ in sym}
 
             mts = f.readline().split(':')
@@ -850,7 +875,7 @@ class MainWindow(QMainWindow, Ui_MainWindow_Pol):
             self.Win_dE.init(self.thread.E0, self.thread.dw)
         if self.thread.get_folder:
             self.action3D_viewer.setEnabled(True)
-            self.Win_dE.read(self.thread.rep[0].table[0].dE)
+            self.Win_dE.read(self.thread.rep[0].table[0].dE, self.thread.rep[0].table[0].dE)
             self.statusbar.showMessage('Done!', 3000)
             sleep(3)
             self.startButton.setEnabled(True)
@@ -1081,6 +1106,7 @@ class MainWindow(QMainWindow, Ui_MainWindow_Pol):
             info.write('SIG2: ')
             for i in self.thread.dw:
                 info.write('%s=%.3f ' % (i, self.thread.dw[i]))
+            info.write('\n')
             info.write('dE: ')
             for i in self.thread.E0:
                 info.write('%s=%.1f ' % (i, self.thread.E0[i]))
@@ -1318,7 +1344,7 @@ class MainWindow(QMainWindow, Ui_MainWindow_Pol):
                 replica.cell.adsorption = True
 
     def plot_init(self):
-        color = ['blue', 'red', 'yellow', 'green', 'orange', 'purple', 'cyan']
+        color = ['blue', 'yellow', 'green', 'orange', 'purple', 'cyan']
         if not self.g3dLayout.isEmpty():
             self.g3dLayout.removeWidget(self.model)
         self.model = gl.GLViewWidget()
@@ -1427,12 +1453,14 @@ class MainWindow(QMainWindow, Ui_MainWindow_Pol):
             elif param == 'dw':
                 for replica in self.thread.rep:
                     for pol in range(self.thread.exp.size):
+                        replica.table[pol].dw.update(self.thread.dw)
                         replica.table[pol].sig2.update(sig2[pol])
                         replica.table[pol].flush()
             elif param == 'def':
                 for replica in self.thread.rep:
                     for pol in range(self.thread.exp.size):
                         replica.table[pol].dE.update(self.thread.E0)
+                        replica.table[pol].dw.update(self.thread.dw)
                         replica.table[pol].sig2.update(sig2[pol])
                         replica.table[pol].flush()
             self.thread.cal_spectrum()

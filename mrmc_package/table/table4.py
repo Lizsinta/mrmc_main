@@ -15,7 +15,8 @@ class TABLE_POL:
         self.element = element
         self.coordinate = coor
         self.distance = np.array([sqrt((_ ** 2).sum()) for _ in coor])
-        self.sig2 = {key:np.exp(-2 * dw[key] ** 2 * k0 ** 2) for key in dw}
+        self.dw = dw
+        self.sig2 = {key:np.exp(-2 * dw[key] ** 2 * k0 ** 2) for key in self.dw}
         self.dE = dE
         self.s02 = s02
         self.folder = folder

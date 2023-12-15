@@ -13,6 +13,7 @@ satellite_atoms[element coor1 coor2 coor3]
 S 2.15 -1 30
 END
 coordinate_system[True=spherical, False=cartesian]:True
+satellite_coordinate[True=absolute, False=relative, based on surface or center atom]: False
 random_deposition[True=randomly initial adsorbed point]:True
 move_pattern[True=all replicas move every step]:True
 trial_count[[target, moving], prevent random walk choke, optiona]: 100 100
@@ -22,11 +23,11 @@ surface_range[[xmin, xmax, ymin, ymax, zmin, zmax], optional]:
 
 [spectrum setting]
 S0:1
-SIG2:0
+SIG2:O=0 S=0 Ti=0
 k_range[low high]:3 9
 r_range[low high]:1 2.7
-delta_E[setting for each satellite atom]:13 -3 13
-rpath[valid only for surface included]:2.7
+delta_E[setting for each satellite atom]:O=13 S=-3 Ti=13
+rpath:O=2.3 S=2.7 Ti=2.7
 multiscattering[True=enable]:False
 
 [path setting]
