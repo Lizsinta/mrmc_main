@@ -324,7 +324,7 @@ class ATOMS:
                 temp = line.split()
                 ele = np.append(ele, temp[0])
                 coor = np.append(coor, np.array([float(temp[1]), float(temp[2]), float(temp[3])]))
-        self.coordinate_whole = np.round(np.reshape(coor, (int(coor.size / 3), 3)), 3)
+        self.coordinate_whole = np.round(np.reshape(coor, (-1, 3)), 3)
         self.element_whole = ele.copy()
         self.surface_c = self.coordinate_whole.copy()
         self.surface_e = self.element_whole.copy()
@@ -375,7 +375,7 @@ class ATOMS:
                 temp = line.split()
                 ele = np.append(ele, temp[0])
                 coor = np.append(coor, np.array([float(temp[1]), float(temp[2]), float(temp[3])]))
-        self.coordinate_whole = np.round(np.reshape(coor, (int(coor.size / 3), 3)), 3)
+        self.coordinate_whole = np.round(np.reshape(coor, (-1, 3)), 3)
         self.element_whole = ele.copy()
         self.surface_c = self.coordinate_whole.copy()
         self.surface_e = self.element_whole.copy()
@@ -531,13 +531,16 @@ class ATOMS:
             self.c_temp[target][randrange(3)] += round(randrange(-self.step_range[1], self.step_range[1] + 1)
                                                        * self.step[1], 3)
             distance = np.delete(get_distance(self.c_temp - self.c_temp[target]), target)
-            if np.min(distance) > self.local_range[self.element[target]] or np.min(distance) < self.min_distance:
+            if np.min(distance) < self.min_distance:
                 trials -= 1
                 continue
-            '''if self.c_temp.shape[0] > 3 and self.element[3] == 'O':
+            if not self.surface == '' and np.min(distance) > self.local_range[self.element[target]]:
+                trials -= 1
+                continue
+            if self.c_temp.shape[0] > 3 and self.element[3] == 'O':
                 if not (2.80 < sqrt(((self.c_temp[2] - self.c_temp[3]) ** 2).sum()) < 3):
                     trials -= 1
-                    continue'''
+                    continue
             self.distance[target] = sqrt((self.c_temp[target] ** 2).sum())
             break
         flag = True if trials == 0 else False
@@ -579,7 +582,10 @@ class ATOMS:
             self.c_temp[target][1] = round(ri * sin(elevation) * sin(azimuth), 3)
             self.c_temp[target][2] = round(ri * cos(elevation), 3)
             distance = np.delete(get_distance(self.c_temp - self.c_temp[target]), target)
-            if np.min(distance) > self.local_range[self.element[target]] or np.min(distance) < self.min_distance:
+            if np.min(distance) < self.min_distance:
+                trials -= 1
+                continue
+            if not self.surface == '' and np.min(distance) > self.local_range[self.element[target]]:
                 trials -= 1
                 continue
             '''if self.c_temp.shape[0] > 3 and self.element[3] == 'O':

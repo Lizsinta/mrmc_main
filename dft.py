@@ -4,7 +4,7 @@ import os
 import numpy as np
 from mrmc_package import get_distance
 
-fin = r'D:\Users\Administrator\Desktop\dft2\origin\linear.txt'
+fin = r'C:\Users\lizsi\Desktop\dft3\origin\linear24.txt'
 name = fin.split('\\')[-1].split('.')[0]
 farray = np.loadtxt(fin, dtype=str).T
 
@@ -27,7 +27,7 @@ loe = np.append(ele[-13:-11], sfe[loi])
 center = sfc[np.argmin(get_distance(sfc - np.mean(sfc, axis=0)))]
 sfc = sfc - center
 
-folder =r'D:\Users\Administrator\Desktop\dft2\test'
+folder =r'C:\Users\lizsi\Desktop\dft3'
 os.makedirs(folder) if not os.path.exists(folder) else None
 os.makedirs(folder + r'\surface') if not os.path.exists(folder + r'\surface') else None
 os.makedirs(folder + r'\local') if not os.path.exists(folder + r'\local') else None
