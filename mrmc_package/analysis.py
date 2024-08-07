@@ -275,13 +275,13 @@ def plot_bondanlge(coor, ele):
 def plot_TiO2(coor, ele, graph):
     for i in range(ele.size):
         if ele[i] == 'Ti' or ele[i] == 'Al':
-            color = 'grey'
+            color = 'purple'
         else:
             if coor[i][2] > 0.5:
-                color = 'purple'
-            else:
                 color = 'red'
-        size = 0.4 if ele[i] == 'O' else 0.6
+            else:
+                color = 'orange'
+        size = 0.6 if ele[i] == 'O' else 0.4
         graph.addItem(scatter(coor[i][0], coor[i][1], coor[i][2], c=color, scale=size))
     for i in range(ele.size):  # substrate bonds
         for j in range(i):

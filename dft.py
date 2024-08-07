@@ -4,7 +4,7 @@ import os
 import numpy as np
 from mrmc_package import get_distance
 
-fin = r'C:\Users\lizsi\Desktop\dft3\origin\linear24.txt'
+fin = r'C:\Users\lizsi\Desktop\paper\dft2\origin\right_tca_reverse2.txt'
 name = fin.split('\\')[-1].split('.')[0]
 farray = np.loadtxt(fin, dtype=str).T
 
@@ -27,7 +27,7 @@ loe = np.append(ele[-13:-11], sfe[loi])
 center = sfc[np.argmin(get_distance(sfc - np.mean(sfc, axis=0)))]
 sfc = sfc - center
 
-folder =r'C:\Users\lizsi\Desktop\dft3'
+folder =r'C:\Users\lizsi\Desktop\paper\dft2'
 os.makedirs(folder) if not os.path.exists(folder) else None
 os.makedirs(folder + r'\surface') if not os.path.exists(folder + r'\surface') else None
 os.makedirs(folder + r'\local') if not os.path.exists(folder + r'\local') else None
@@ -39,7 +39,7 @@ with open(folder + r'\surface\%s.xyz'%name, 'w') as f:
 
 with open(folder + r'\surface\%s.txt' % name, 'w') as f:
     f.write('%s %.9f %.9f %.9f\n' % (ele[-13], coor[-13][0] - center[0], coor[-13][1] - center[1], coor[-13][2] - center[2]))
-    f.write('%s %.9f %.9f %.9f\n' % (ele[-12], coor[-12][0] - coor[-13][0], coor[-12][1] - coor[-13][1], coor[-12][2] - coor[-13][2]))
+    f.write('%s %.9f %.9f %.9f\n' % (ele[-12], coor[-12][0] - center[0], coor[-12][1] - center[1], coor[-12][2] - center[2]))
     '''f.write('%s %.9f %.9f %.9f\n' % (tcae[c], tcac[c][0] - coor[-13][0],
                                      tcac[c][1] - coor[-13][1],
                                      tcac[c][2] - coor[-13][2]))'''

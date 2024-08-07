@@ -93,7 +93,7 @@ def hemisphere(radius, c=(0, 0, 0), alpha=1.0):
     return m2
 
 
-def init_3dplot(target, grid=True, background=[255., 255., 255.], alpha=1.0, view=40, angle=[], title=''):
+def init_3dplot(target, grid=True, background=[255., 255., 255.], alpha=1.0, view=40, angle=[], title='', ortho=False):
     if grid:
         gx = gl.GLGridItem()
         gx.setColor((0, 0, 0, 100))
@@ -113,6 +113,9 @@ def init_3dplot(target, grid=True, background=[255., 255., 255.], alpha=1.0, vie
     if not len(angle) == 0:
         target.opts['azimuth'] = angle[0]
         target.opts['elevation'] = angle[1]
+    if ortho:
+        target.opts['distance'] = 2000
+        target.opts['fov'] = 1
     target.setBackgroundColor(color_convert(background, alpha))
     target.setWindowTitle(title)
 

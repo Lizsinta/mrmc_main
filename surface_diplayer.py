@@ -12,7 +12,7 @@ from sys import argv, exit
 
 from mrmc_package import init_3dplot, scatter, line, plot_TiO2, cylinder
 
-file = r'D:\simulation\tca3\model.dat'
+file = r'D:\simulation\tca3x\model.dat'
 
 # framework: windows->large widget->layout->all kinds of graph widgets-> item
 app = QApplication([])
@@ -29,7 +29,6 @@ cw.setLayout(l)
 g3d = gl.GLViewWidget()
 init_3dplot(g3d, background=[255., 255., 255.], alpha=1.0, view=40, title='3D viewer', grid=False)
 l.addWidget(g3d)
-#g3d.addItem(scatter(0, 0, 0, c='purple', scale=0.4))
 
 
 
@@ -40,10 +39,9 @@ with open(file, 'r') as f:
     while True:
         posi = f.tell()
         lines = f.readline()
-        if not lines.find('initial surface model') == -1:
+        if lines.find('[final surface model]') == -1:
             continue
         break
-    f.seek(posi)
     while True:
         lines = f.readline()
         if not lines or lines.isspace():
@@ -69,7 +67,7 @@ g3d.addItem(line([-5, 5], [0, 0], [0, 0], c='red', width=3))
 g3d.addItem(line([0, 0], [-5, 5], [0, 0], c='green', width=3))
 g3d.addItem(line([0, 0], [0, 0], [-5, 5], c='blue', width=3))
 for i in range(cu.shape[0]):
-    g3d.addItem(scatter(cu[i][0], cu[i][1], cu[i][2], c='brown', scale=0.4))
+    g3d.addItem(scatter(cu[i][0], cu[i][1], cu[i][2], c='blue', scale=0.4))
     g3d.addItem(scatter(s[i][0], s[i][1], s[i][2], c='yellow', scale=0.4))
     g3d.addItem(cylinder([cu[i][0], s[i][0]], [cu[i][1], s[i][1]], [cu[i][2], s[i][2]], c='k', width=0.1))
     dist = np.array([sqrt(((surface_c[j] - cu[i])**2).sum()) for j in range(surface_e.size)])
