@@ -10,7 +10,7 @@ from sys import argv, exit
 
 from mrmc_package import init_3dplot, scatter, line, cylinder, plot_TiO2
 
-file = r'C:\Users\lizsi\Desktop\paper\dft3\origin\linear22.txt'
+file = r'C:\Users\lizsi\Desktop\paper\jpc\20230605\right.dat'
 
 # framework: windows->large widget->layout->all kinds of graph widgets-> item
 app = QApplication([])

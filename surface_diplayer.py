@@ -27,7 +27,7 @@ cw.setLayout(l)
 
 # 3d graph
 g3d = gl.GLViewWidget()
-init_3dplot(g3d, background=[255., 255., 255.], alpha=1.0, view=40, title='3D viewer', grid=False)
+init_3dplot(g3d, background=[255., 255., 255.], alpha=1.0, view=40, title='3D viewer', grid=False, ortho=True)
 l.addWidget(g3d)
 
 
@@ -39,7 +39,7 @@ with open(file, 'r') as f:
     while True:
         posi = f.tell()
         lines = f.readline()
-        if lines.find('[final surface model]') == -1:
+        if lines.find('[initial surface model]') == -1:
             continue
         break
     while True:

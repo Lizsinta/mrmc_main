@@ -1366,7 +1366,7 @@ class MainWindow(QMainWindow, Ui_MainWindow_Pol):
         self.bond = np.array([])
 
         if not self.thread.surface == '':
-            init_3dplot(self.model, grid=False, view=40, title='model')  # set initial view distance by "view"
+            init_3dplot(self.model, grid=False, view=40, title='model', ortho=True)  # set initial view distance by "view"
             if self.thread.surface == 'TiO2':
                 plot_TiO2(self.thread.rep[0].cell.surface_c, self.thread.rep[0].cell.surface_e, self.model)
             elif self.thread.surface == 'Al2O3':

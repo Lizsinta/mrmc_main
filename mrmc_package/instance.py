@@ -7,8 +7,7 @@ from math import exp, pi, acos, atan, sin, cos
 import numpy as np
 from matplotlib import pyplot as plt
 
-from mrmc_package import k_range, deltaE_shift, back_k_space, norm_fft
-
+from mrmc_package import k_range, deltaE_shift, back_k_space, norm_fft, cal_angle
 
 
 def get_distance(coor):
@@ -249,6 +248,7 @@ class ATOMS:
         self.trial = trial
         self.surface_symbol = np.array([])
         self.surface_path = surface_path
+        self.tca_count = 0
 
         if not self.surface == '' and self.limit.size == 0:
             if self.surface == 'TiO2':
@@ -338,12 +338,16 @@ class ATOMS:
                         and (self.limit[2] + 1.5) < self.surface_c[i][1] < (self.limit[3] - 1.5):
                     adsorb = np.append(adsorb, i)
 
-        self.y1 = -1.93
-        self.y2l = -6.45
+        self.x1 = 0.35
+        self.y1 = -1.97 #-1.93
+        self.y2 = -6.45
+        self.rx_oh = 4.5
         self.rx = 4.95
-        self.rxl = 6.09
-        self.elevation = 65 / 180 * pi
-        self.eccenter = np.array([-0.52, self.y1])
+        self.rxl = 5.05 #6.09
+        self.y2 = self.y1 - self.rx_oh#-6.45
+        #self.elevation = 65 / 180 * pi
+        self.eccenter_n = np.array([-self.x1, self.y1])
+        self.eccenter_p = np.array([self.x1, self.y1])
         self.dangling = np.array([], dtype=int)
         for i in range(ele.size):
             if ele[i] == 'Ti' and (self.surface_c[i][1] == -13.011 or
@@ -472,6 +476,20 @@ class ATOMS:
                 element = np.append(element, temp[4][:-1])
                 distance = np.append(distance, float(temp[5]))
         print('data read')
+
+        coordinate = coordinate.reshape(element.size, 3)
+        c_temp = []
+        ne = np.array([], dtype=int)
+        for j in range(element.size - 2):
+            if element[j] == 'O' and sqrt(((coordinate[-2] - coordinate[j]) ** 2).sum()) < 2.8:
+                c_temp.append(coordinate[j])
+                ne = np.append(ne, j)
+        c_temp = np.asarray(c_temp)
+        k = np.argmin(
+            np.array([sqrt(((c_temp[_] - coordinate[-2]) ** 2).sum()) for _ in range(c_temp.shape[0])]))
+        coordinate[-2] -= (coordinate[ne[k]] - coordinate[41])
+        coordinate[-1] -= (coordinate[ne[k]] - coordinate[41])
+
         if not self.surface == '':
             self.coordinate_whole = coordinate.reshape(element.size, 3)
             self.cw_temp = self.coordinate_whole.copy()
@@ -496,12 +514,15 @@ class ATOMS:
             self.satellite_c = self.coordinate_whole[-self.local_size - 1:].copy()
             self.satellite_e = self.element_whole[-self.local_size - 1:].copy()
             if self.surface == 'TiO2':
-                self.y1 = -1.93
-                self.y2l = -6.45
+                self.x1 = 0.35
+                self.y1 = -1.97
+                self.rx_oh = 4.5
                 self.rx = 4.95
-                self.rxl = 6.09
-                self.elevation = 65 / 180 * pi
-                self.eccenter = np.array([-0.52, self.y1])
+                self.rxl = 5.05
+                self.y2 = self.y1 - self.rx_oh#-6.45
+                #self.elevation = 65 / 180 * pi
+                self.eccenter_n = np.array([-self.x1, self.y1])
+                self.eccenter_p = np.array([self.x1, self.y1])
                 self.dangling = np.array([], dtype=int)
                 for i in range(self.surface_e.size):
                     if self.surface_e[i] == 'Ti' and (self.surface_c[i][1] == -13.011 or
@@ -531,16 +552,27 @@ class ATOMS:
             self.c_temp[target][randrange(3)] += round(randrange(-self.step_range[1], self.step_range[1] + 1)
                                                        * self.step[1], 3)
             distance = np.delete(get_distance(self.c_temp - self.c_temp[target]), target)
+
+            if self.surface == 'TiO2':
+                if self.tca_count > 50:
+                    self.c_temp[target] = self.azi_rotate(self.c_temp[:2])
+                    self.coordinate[target] = self.c_temp[target].copy()
+                    self.tca_count = 0
+                if not self.tca_filter(self.cw_temp[-2:]):
+                    trials -= 1
+                    self.tca_count += 1
+                    continue
+
             if np.min(distance) < self.min_distance:
                 trials -= 1
                 continue
             if not self.surface == '' and np.min(distance) > self.local_range[self.element[target]]:
                 trials -= 1
                 continue
-            if self.c_temp.shape[0] > 3 and self.element[3] == 'O':
+            '''if self.c_temp.shape[0] > 3 and self.element[3] == 'O':
                 if not (2.80 < sqrt(((self.c_temp[2] - self.c_temp[3]) ** 2).sum()) < 3):
                     trials -= 1
-                    continue
+                    continue'''
             self.distance[target] = sqrt((self.c_temp[target] ** 2).sum())
             break
         flag = True if trials == 0 else False
@@ -611,10 +643,15 @@ class ATOMS:
                 trials -= 1
                 continue
 
-            '''if self.surface == 'TiO2':
-                if not self.tca_filter(self.cw_temp[-1]):
+            if self.surface == 'TiO2':
+                if self.tca_count > 50:
+                    self.cw_temp[-1] = self.azi_rotate(self.cw_temp[-2:])
+                    self.coordinate_whole[-1] = self.cw_temp[-1].copy()
+                    self.tca_count = 0
+                if not self.tca_filter(self.cw_temp[-2:]):
+                    self.tca_count += 1
                     trials -= 1
-                    continue'''
+                    continue
 
             distance = get_distance(self.cw_temp[:-self.local_size] - self.cw_temp[-self.local_size])
             self.c_temp = self.cw_temp[-self.local_size:].copy()
@@ -633,9 +670,32 @@ class ATOMS:
             break
         return True if trials == 0 else False
 
-    def tca_filter(self, coor_s):
+    def azi_rotate(self, _coor):
+        temp = _coor[1] - _coor[0]
+        if randrange(2) == 0:
+            temp[0] *= -1
+        else:
+            temp[1] *= -1
+        '''ri = sqrt((_coor ** 2).sum())
+        if not _coor[0] == 0:
+            azimuth = atan(_coor[1] / _coor[0])
+            if _coor[0] < 0:
+                azimuth += pi
+        else:
+            azimuth = pi / 2
+            if _coor[1] < 0:
+                azimuth += pi
+        elevation = acos(_coor[2] / ri)
+        azimuth = (180 - azimuth) if randrange(2) == 0 else 
+        azimuth = azimuth + 360 if azimuth < 0 else azimuth
+        _coor[0] = round(ri * sin(elevation) * cos(azimuth), 3)
+        _coor[1] = round(ri * sin(elevation) * sin(azimuth), 3)
+        _coor[2] = round(ri * cos(elevation), 3)'''
+        return temp + _coor[0]
+
+    def tca_filter(self, coor_local):
         coor_rot = np.zeros(2)
-        temp = self.dangling - coor_s
+        temp = self.dangling - coor_local[1]
         qualify = False
         for j in range(self.dangling.shape[0]):
             azi = atan(temp[j][1] / temp[j][0]) if not temp[j][0] == 0 else 0
@@ -643,10 +703,16 @@ class ATOMS:
                 azi += pi
             coor_rot[0] = temp[j][0] * cos(azi) + temp[j][1] * sin(azi)
             coor_rot[1] = temp[j][2]
-            if self.y2l < coor_rot[1] < self.y1:
-                vect = coor_rot - self.eccenter
-                if self.rx < sqrt((vect ** 2).sum()) < self.rxl:
-                    if 0 < -atan(vect[1] / vect[0]) < self.elevation:
+            if self.y2 < coor_rot[1] < self.y1:
+                vect_n = coor_rot - self.eccenter_n
+                vect_p = coor_rot - self.eccenter_p
+                angle = abs(cal_angle(coor_local[0], coor_local[1], self.dangling[j]+np.array([0, 0, 2])))
+                if sqrt((vect_n ** 2).sum()) > self.rx_oh > sqrt((vect_p ** 2).sum()):
+                    if angle > 67:
+                        qualify = True
+                        break
+                elif sqrt((vect_n ** 2).sum()) > self.rx and sqrt((vect_p ** 2).sum()) < self.rxl:
+                    if angle > 67:
                         qualify = True
                         break
         return qualify

@@ -191,12 +191,15 @@ def read_rep_substrate(f_rep, material, filter=True):
 
 
 def tca_filter(coor, ele):
-    y1 = -1.93
-    y2l = -6.45
+    x1 = 0.35
+    y1 = -1.97#-1.93
+    rx_oh = 4.5
     rx = 4.95
-    rxl = 6.09
-    elevation = 65 / 180 * pi
-    center = np.array([-0.52, y1])
+    rxl = 5.05#6.09
+    y2 = y1 - rx_oh#-6.45
+    #elevation = 65 / 180 * pi
+    center_n = np.array([-x1, y1])
+    center_p = np.array([x1, y1])
     filtered = np.array([], dtype=int)
     index = np.array([], dtype=int)
     coor_rot = np.zeros(2)
@@ -227,14 +230,21 @@ def tca_filter(coor, ele):
                 azi += pi
             coor_rot[0] = temp[j][0] * cos(azi) + temp[j][1] * sin(azi)
             coor_rot[1] = temp[j][2]
-            if y2l < coor_rot[1] < y1:
-                vect = coor_rot - center
-                if rx < sqrt((vect ** 2).sum()) < rxl:
-                    if 0 < -atan(vect[1] / vect[0]) < elevation:
-                        filtered = np.append(filtered, i)
-                        if coor[i][-2][0] < substrate[41][0] and coor[i][-2][1] < substrate[41][1]:
-                            print(coor[i][-1:], temp[j] + coor[i][-1:])
-                        break
+            vect_n = coor_rot - center_n
+            vect_p = coor_rot - center_p
+            angle = abs(cal_angle(coor[i][-2], coor[i][-1], temp[j] + np.array([0, 0, 2])))
+            if sqrt((vect_n ** 2).sum()) > rx_oh > sqrt((vect_p ** 2).sum()):
+                if angle > 57:
+                    filtered = np.append(filtered, i)
+                    if coor[i][-2][0] < substrate[41][0] and coor[i][-2][1] < substrate[41][1]:
+                        print(coor[i][-1:], temp[j] + coor[i][-1:])
+                    break
+            elif sqrt((vect_n ** 2).sum()) > rx and sqrt((vect_p ** 2).sum()) < rxl:
+                if angle > 47:
+                    filtered = np.append(filtered, i)
+                    if coor[i][-2][0] < substrate[41][0] and coor[i][-2][1] < substrate[41][1]:
+                        print(coor[i][-1:], temp[j] + coor[i][-1:])
+                    break
     return filtered
 
 

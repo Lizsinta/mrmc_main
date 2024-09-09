@@ -138,6 +138,7 @@ class RMC4:
             self.cell.coordinate_whole = self.cell.cw_temp.copy()
             self.cell.element = self.cell.e_temp.copy()
         self.cell.coordinate = self.cell.c_temp.copy()
+        self.cell.tca_count = 0
 
     def reject(self):
         if self.debug:
